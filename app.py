@@ -8,6 +8,8 @@ automaticamente, listada na sidebar).
 
 import streamlit as st
 import pandas as pd
+import datetime
+import os
 
 from config.settings import APP_NAME, APP_ICON, ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, THEME
 from data.data_manager import load_price_history_bulk
@@ -37,6 +39,7 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab"] {{ color: {THEME['text_muted']}; }}
     .stTabs [aria-selected="true"] {{ color: {THEME['accent']} !important; }}
     div[data-testid="stDataFrame"] {{ border: 1px solid {THEME['border']}; border-radius: 8px; }}
+    .small-caption {{ font-size: 0.8rem; color: {THEME['text_muted']}; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,23 +50,46 @@ with st.sidebar:
     st.markdown(f"## {APP_ICON} {APP_NAME}")
     st.caption("Institutional Quant Research Platform")
     st.divider()
-    st.markdown(
-        "**Módulos:**\n"
-        "- 🌍 Dashboard Global\n"
-        "- 🛢️ Energy Analytics\n"
-        "- ⚙️ Metals Analytics\n"
-        "- 🌾 Agriculture Analytics\n"
-        "- 🇧🇷 Commodities Brasileiras\n"
-        "- 🔗 Macro & Correlações\n"
-        "- ⚠️ Risk Analytics\n"
-        "- 📈 Forecast\n"
-        "- 🧮 Quant Research\n"
-    )
+    
+    # Lista automática dos módulos (páginas)
+    try:
+        module_files = [f for f in os.listdir("pages") if f.endswith(".py")]
+        # Remove números e extensão para exibir nome amigável
+        module_names = []
+        for f in module_files:
+            # Ex: "1_🌍_Global_Dashboard.py" -> "🌍 Global Dashboard"
+            parts = f.replace(".py", "").split("_", 1)
+            if len(parts) == 2:
+                name = parts[1].replace("_", " ")
+            else:
+                name = parts[0].replace("_", " ")
+            module_names.append(name)
+        st.markdown("**Módulos:**\n" + "\n".join([f"- {m}" for m in module_names]))
+    except FileNotFoundError:
+        # Fallback caso a pasta pages não exista (ambiente de desenvolvimento)
+        st.markdown(
+            "**Módulos:**\n"
+            "- 🌍 Dashboard Global\n"
+            "- 🛢️ Energy Analytics\n"
+            "- ⚙️ Metals Analytics\n"
+            "- 🌾 Agriculture Analytics\n"
+            "- 🇧🇷 Commodities Brasileiras\n"
+            "- 🔗 Macro & Correlações\n"
+            "- ⚠️ Risk Analytics\n"
+            "- 📈 Forecast\n"
+            "- 🧮 Quant Research"
+        )
+
     st.divider()
     st.caption("Fontes: Yahoo Finance · FRED · fallback sintético automático")
+    
+    # Botão de atualização
     if st.button("🔄 Atualizar dados (limpar cache)"):
         st.cache_data.clear()
         st.rerun()
+    
+    # Timestamp da última atualização
+    st.caption(f"📅 {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # --------------------------------------------------------------------------
 # CONTEÚDO PRINCIPAL
@@ -71,29 +97,81 @@ with st.sidebar:
 st.title(f"{APP_ICON} {APP_NAME}")
 st.caption("Monitoramento institucional do mercado global de commodities — Energia · Metais · Agricultura")
 
-quick_assets = [ENERGY_ASSETS[0], ENERGY_ASSETS[1], METALS_ASSETS[0], METALS_ASSETS[2], AGRI_ASSETS[0], AGRI_ASSETS[2]]
+# Ativos para os cards rápidos (Brent, WTI, Ouro, Cobre, Soja, Trigo)
+quick_assets = [
+    ENERGY_ASSETS[0],  # Brent
+    ENERGY_ASSETS[1],  # WTI
+    METALS_ASSETS[0],  # Ouro
+    METALS_ASSETS[2],  # Cobre
+    AGRI_ASSETS[0],    # Soja
+    AGRI_ASSETS[2]     # Trigo
+]
+
 with st.spinner("Carregando cotações..."):
     price_data = load_price_history_bulk(quick_assets)
 
+# Exibe cards com tratamento de NaN
 cols = st.columns(len(quick_assets))
 for col, asset in zip(cols, quick_assets):
     pdat = price_data[asset.ticker]
     close = pdat.df["Close"]
-    chg = metrics.pct_change_over(close, 1)
+    
+    if not close.empty and pd.notna(close.iloc[-1]):
+        last_price = close.iloc[-1]
+        chg = metrics.pct_change_over(close, 1)
+        display_price = f"{last_price:.2f}"
+        display_delta = f"{chg:+.2%}" if pd.notna(chg) else None
+    else:
+        last_price = None
+        chg = None
+        display_price = "N/D"
+        display_delta = None
+    
     with col:
-        st.metric(f"{asset.name}", f"{close.iloc[-1]:.2f}", f"{chg:+.2%}" if chg is not None else None)
+        st.metric(
+            label=f"{asset.name}",
+            value=display_price,
+            delta=display_delta,
+        )
         if pdat.is_synthetic:
             st.caption("🔸 simulado")
 
 st.divider()
 
+# --------------------------------------------------------------------------
+# GRÁFICO DE RETORNO ACUMULADO (com seletor de período)
+# --------------------------------------------------------------------------
 col_left, col_right = st.columns([2, 1])
-with col_left:
-    st.subheader("Visão Geral — Retorno Acumulado (90 dias)")
-    cum_returns = {a.name: metrics.cumulative_return_series(price_data[a.ticker].df["Close"]).tail(90)
-                   for a in quick_assets}
-    st.plotly_chart(charts.line_chart(cum_returns, title="", y_title="Retorno acumulado"), use_container_width=True)
 
+with col_left:
+    st.subheader("Visão Geral — Retorno Acumulado")
+    
+    # Seletor de período
+    period_days = st.selectbox("Período", [30, 60, 90, 180, 365], index=2, key="period_selector")
+    
+    cum_returns = {}
+    for a in quick_assets:
+        ser = price_data[a.ticker].df["Close"]
+        if not ser.empty and len(ser) > 1:
+            cum = metrics.cumulative_return_series(ser).tail(period_days)
+            cum_returns[a.name] = cum
+        else:
+            # Se não houver dados, adiciona série vazia
+            cum_returns[a.name] = pd.Series(dtype=float)
+    
+    # Se todos os dados forem simulados, exibe aviso
+    any_synth = any(pdat.is_synthetic for pdat in price_data.values())
+    if any_synth:
+        st.caption("⚠️ Alguns ativos podem estar exibindo dados simulados (🔸)")
+    
+    st.plotly_chart(
+        charts.line_chart(cum_returns, title=f"Retorno Acumulado ({period_days} dias)", y_title="Retorno"),
+        use_container_width=True,
+    )
+
+# --------------------------------------------------------------------------
+# SOBRE A PLATAFORMA
+# --------------------------------------------------------------------------
 with col_right:
     st.subheader("Sobre a Plataforma")
     st.markdown(
