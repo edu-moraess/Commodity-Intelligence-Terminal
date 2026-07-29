@@ -10,6 +10,7 @@ páginas de setor, evitando triplicar ~200 linhas de layout Streamlit.
 from __future__ import annotations
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 from config.settings import Asset, RISK_FREE_RATE_ANNUAL
 from data.data_manager import load_price_history_bulk, build_price_panel
@@ -17,10 +18,21 @@ from analytics import metrics, correlation
 from charts import plotly_charts as charts
 
 
-def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str = "") -> None:
+def render_sector_page(
+    assets: list[Asset],
+    sector_name: str,
+    sector_note: str = "",
+    methodology_text: str = "",  # NOVO: metodologia específica do setor
+) -> None:
     st.title(f"{sector_name}")
     if sector_note:
         st.caption(sector_note)
+
+    # -------- METODOLOGIA GERAL DO SETOR (expander no topo) --------
+    if methodology_text:
+        with st.expander("📘 Metodologia Geral do Setor", expanded=False):
+            st.markdown(methodology_text)
+        st.divider()
 
     with st.spinner(f"Carregando dados de {sector_name}..."):
         price_data = load_price_history_bulk(assets)
@@ -40,12 +52,23 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         pdat = price_data[asset.ticker]
         close = pdat.df["Close"]
         row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
+        
+        # Tratamento de NaN
+        last_price = row["last_price"]
+        delta = row["chg_1d"]
+        
+        if pd.isna(last_price) or last_price is None:
+            display_value = "N/D"
+            display_delta = None
+        else:
+            display_value = f"{last_price:.2f}"
+            display_delta = f"{delta:+.2%}" if delta is not None and not pd.isna(delta) else None
+        
         with cols[i % len(cols)]:
-            delta = row["chg_1d"]
             st.metric(
                 label=f"{asset.name} ({asset.unit})",
-                value=f"{row['last_price']:.2f}" if row["last_price"] else "—",
-                delta=f"{delta:+.2%}" if delta is not None else None,
+                value=display_value,
+                delta=display_delta,
             )
             if pdat.is_synthetic:
                 st.caption("🔸 simulado")
@@ -68,30 +91,58 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
             "Momentum": row["momentum"], "Tendência": row["trend"],
         })
     df_table = pd.DataFrame(table_rows).set_index("Ativo")
+    
     pct_cols = ["1D", "1S", "1M", "YTD", "Vol. Anual.", "Max DD", "Momentum"]
+    float_cols = ["Último", "Sharpe", "Sortino", "Calmar"]
+    
+    style_dict = {col: "{:.2%}" for col in pct_cols}
+    style_dict.update({col: "{:.2f}" for col in float_cols})
+    
     st.dataframe(
-        df_table.style.format({c: "{:.2%}" for c in pct_cols} | {
-            "Último": "{:.2f}", "Sharpe": "{:.2f}", "Sortino": "{:.2f}", "Calmar": "{:.2f}",
-        }),
+        df_table.style.format(style_dict, na_rep="-"),
         use_container_width=True,
     )
-    
-    # -------- Metodologia das Métricas --------
-    with st.expander("📖 Metodologia — Como interpretar esta tabela"):
-        st.markdown("""
-        | Métrica | O que significa | Como interpretar |
-        |---------|---------------|------------------|
-        | **1D / 1S / 1M / YTD** | Retorno acumulado no período (1 dia, 1 semana, 1 mês, ano corrente) | Positivo = alta; Negativo = queda |
-        | **Vol. Anual.** | Desvio-padrão dos retornos diários × √252 | Quanto maior, mais arriscado o ativo |
-        | **Sharpe** | (Retorno excedente) / (Volatilidade excedente) anualizado | > 1 é bom; < 0 é ruim (não compensa o risco) |
-        | **Sortino** | Similar ao Sharpe, mas penaliza só a volatilidade negativa (downside) | Mais robusto que Sharpe para distribuições assimétricas |
-        | **Max DD** | Maior queda do pico até o vale, nos últimos 252 pregões | Quanto mais próximo de 0, menor o risco de perda severa |
-        | **Calmar** | Retorno anualizado / \|Max DD\| | Relação retorno/risco de drawdown; > 2 é excelente |
-        | **Momentum** | Média dos retornos 1M/3M/6M/12M | Positivo = tendência de alta; Negativo = tendência de baixa |
-        | **Tendência** | Cruzamento de médias móveis (20d vs 100d) | "Alta" = MM20 > MM100; "Baixa" = MM20 < MM100 |
+
+    # -------- Expander com fórmulas das métricas (genérico para todos os setores) --------
+    with st.expander("📐 Como as métricas são calculadas? (Fórmulas)"):
+        st.markdown(r"""
+        **Retornos (1D, 1S, 1M, YTD):** Variação percentual simples entre o preço atual e o preço de \(n\) dias atrás.
         
-        **Taxa livre de risco:** 4,5% a.a. (ajustável via `.env`).  
-        **Janela padrão:** Sharpe/Sortino/Calmar usam 252 pregões (~1 ano); Volatilidade usa 63 pregões (~3 meses).
+        **Volatilidade Anualizada:**
+        $$
+        \sigma_{\text{anual}} = \sigma_{\text{diário}} \times \sqrt{252}
+        $$
+        
+        **Sharpe Ratio (Sharpe, 1966):**
+        $$
+        \text{Sharpe} = \frac{\bar{R} - R_f}{\sigma}
+        $$
+        onde \(\bar{R}\) é o retorno médio diário (anualizado), \(R_f\) é a taxa livre de risco (4.5% a.a.), e \(\sigma\) é o desvio padrão anualizado.
+        
+        **Sortino Ratio (Sortino & Price, 1994):**
+        $$
+        \text{Sortino} = \frac{\bar{R} - R_f}{\sigma_{\text{down}}}
+        $$
+        onde \(\sigma_{\text{down}}\) é o desvio padrão **apenas** dos retornos negativos (downside deviation).
+        
+        **Máximo Drawdown (MDD):**
+        $$
+        \text{MDD} = \max_{t} \left( \frac{\max_{s \leq t} P_s - P_t}{\max_{s \leq t} P_s} \right)
+        $$
+        mede a maior queda acumulada do preço de um pico a um vale (janela de 252 pregões).
+        
+        **Calmar Ratio:**
+        $$
+        \text{Calmar} = \frac{\text{Retorno Acumulado (252d)}}{|\text{MDD}|}
+        $$
+        Quanto maior, melhor o desempenho ajustado à pior perda histórica.
+        
+        **Momentum Composto:** Média simples (não ponderada) dos retornos de 1, 3, 6 e 12 meses.
+        
+        **Tendência:** Compara a média móvel simples curta (20 pregões) com a longa (100 pregões):
+        - **alta**: SMA(20) > SMA(100) × 1,01
+        - **baixa**: SMA(20) < SMA(100) × 0,99
+        - **lateral**: caso contrário (as duas médias estão próximas)
         """)
 
     st.divider()
@@ -102,24 +153,34 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
     selected_name = st.selectbox("Selecionar ativo", list(asset_names.keys()), key=f"sel_{sector_name}")
     selected_asset = asset_names[selected_name]
     selected_df = price_data[selected_asset.ticker].df
-    st.plotly_chart(
-        charts.candlestick_chart(selected_df.tail(180), title=f"{selected_asset.name} — 180 pregões"),
-        use_container_width=True,
-    )
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        cum_ret = metrics.cumulative_return_series(selected_df["Close"])
+    if selected_df.empty or len(selected_df) < 2:
+        st.info(f"Dados insuficientes para exibir o gráfico de {selected_asset.name}.")
+    else:
         st.plotly_chart(
-            charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
+            charts.candlestick_chart(selected_df.tail(180), title=f"{selected_asset.name} — 180 pregões"),
             use_container_width=True,
         )
-    with col_b:
-        st.plotly_chart(
-            charts.bar_chart(["Volume médio (20d)"], [float(selected_df["Volume"].tail(20).mean())],
-                              title="Volume Médio Recente", positive_negative=False),
-            use_container_width=True,
-        )
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            cum_ret = metrics.cumulative_return_series(selected_df["Close"])
+            st.plotly_chart(
+                charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
+                use_container_width=True,
+            )
+        with col_b:
+            try:
+                avg_volume = float(selected_df["Volume"].tail(20).mean())
+                if pd.isna(avg_volume):
+                    avg_volume = 0.0
+            except (KeyError, TypeError):
+                avg_volume = 0.0
+            st.plotly_chart(
+                charts.bar_chart(["Volume médio (20d)"], [avg_volume],
+                                  title="Volume Médio Recente", positive_negative=False),
+                use_container_width=True,
+            )
 
     st.divider()
 
@@ -128,20 +189,14 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         st.subheader(f"Correlação Intra-Setor — {sector_name}")
         panel = build_price_panel(price_data)
         panel.columns = [a.name for a in assets if a.ticker in panel.columns]
-        corr = correlation.correlation_matrix(panel, window=126)
-        st.plotly_chart(charts.correlation_heatmap(corr, title="Correlação (126 pregões)"), use_container_width=True)
         
-        with st.expander("📖 Metodologia — Correlação Intra-Setor"):
-            st.markdown("""
-            A matriz exibe o coeficiente de correlação de Pearson entre os **retornos diários** dos ativos do setor, calculado sobre uma janela de 126 pregões (~6 meses).
-            
-            - **ρ ≈ +1** → ativos se movem juntos (diversificação baixa)
-            - **ρ ≈ 0** → movimentos independentes
-            - **ρ ≈ –1** → se movem em direções opostas (raro em commodities do mesmo setor)
-            
-            Em commodities de energia, por exemplo, Brent e WTI costumam ter ρ > 0.9. Já gás natural pode ter correlação mais baixa devido a dinâmicas regionais de oferta/demanda.
-            """)
+        if panel.empty or panel.shape[1] < 2:
+            st.info("Dados insuficientes para calcular a matriz de correlação.")
+        else:
+            corr = correlation.correlation_matrix(panel, window=126)
+            st.plotly_chart(charts.correlation_heatmap(corr, title="Correlação (126 pregões)"), use_container_width=True)
 
+    # -------- Notas metodológicas de fonte de dados --------
     if any(a.note for a in assets):
         with st.expander("📌 Notas metodológicas de fonte de dados"):
             for a in assets:
