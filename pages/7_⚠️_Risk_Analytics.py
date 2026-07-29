@@ -36,6 +36,22 @@ c1.metric(f"VaR Histórico ({confidence:.1%})", f"{r['var_historico']:.2%}")
 c2.metric(f"VaR Paramétrico ({confidence:.1%})", f"{r['var_parametrico']:.2%}")
 c3.metric("CVaR / Expected Shortfall", f"{r['cvar']:.2%}")
 
+with st.expander("📖 Metodologia — VaR e CVaR"):
+    st.markdown(f"""
+    ### Value at Risk (VaR)
+    O VaR responde à pergunta: *"Qual é a pior perda que posso esperar em um dia normal, com {confidence:.0%} de confiança?"*
+    
+    **VaR Histórico:** ordena os retornos diários da janela de {window} pregões e pega o percentil {(1-confidence)*100:.1f} (o pior cenário que não foi superado em {(confidence)*100:.0f}% dos dias).
+    
+    **VaR Paramétrico:** assume que os retornos seguem uma distribuição normal e calcula o percentil via inversa da função de distribuição acumulada (z-score).  
+    *Limitação:* subestima o risco de cauda (eventos extremos) quando a distribuição tem "gordura nas caudas".
+    
+    ### Conditional VaR (CVaR) / Expected Shortfall
+    O CVaR responde: *"Dado que a perda ultrapassou o VaR, qual é a perda média nesses cenários ruins?"*
+    
+    É uma medida mais conservadora e coerente que o VaR, pois considera a **magnitude média das perdas extremas**, não apenas o limiar.
+    """)
+
 st.caption(
     f"Interpretação: com {confidence:.0%} de confiança, a perda diária não deve exceder "
     f"**{r['var_historico']:.2%}** do valor posicionado (janela de {window} pregões). O CVaR "
@@ -46,13 +62,25 @@ st.divider()
 
 # -------- Métricas de risco ajustado --------
 st.subheader("Risco Ajustado ao Retorno")
-# FIX v4.4.0: removido `if False` — agora respeita a janela selecionada
 row = metrics.summary_row(close, window=window)
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Volatilidade Anualizada", f"{metrics.annualized_volatility(close, window=window):.2%}")
 m2.metric("Sharpe Ratio (252d)", f"{metrics.sharpe_ratio(close, window=252):.2f}")
 m3.metric("Sortino Ratio (252d)", f"{metrics.sortino_ratio(close, window=252):.2f}")
 m4.metric("Máximo Drawdown (252d)", f"{metrics.max_drawdown(close.tail(252)):.2%}")
+
+with st.expander("📖 Metodologia — Métricas de Risco-Ajustado"):
+    st.markdown("""
+    | Métrica | Fórmula Conceitual | Interpretação |
+    |---------|-------------------|---------------|
+    | **Volatilidade Anualizada** | σ_diária × √252 | Dispersão dos retornos — mede incerteza, não perda máxima |
+    | **Sharpe Ratio** | (Retorno – Taxa Livre de Risco) / σ_total | Quanto de retorno por unidade de risco total |
+    | **Sortino Ratio** | (Retorno – Taxa Livre de Risco) / σ_downside | Similar ao Sharpe, mas penaliza apenas volatilidade negativa |
+    | **Máximo Drawdown** | min(Preco / max_acumulado – 1) | Pior queda observada do pico ao vale |
+    
+    **Taxa livre de risco:** 4,5% a.a. (ajustável via `.env`).  
+    **Janela:** as métricas de risco usam a janela selecionada no slider acima.
+    """)
 
 st.divider()
 
@@ -74,6 +102,18 @@ if shocks:
         use_container_width=True,
     )
 
+with st.expander("📖 Metodologia — Stress Test"):
+    st.markdown("""
+    O stress test aplica choques percentuais **instantâneos** ao último preço observado, calculando o novo nível de preço e a variação absoluta em unidades monetárias.
+    
+    **Limitações importantes:**
+    - Não considera efeitos de segunda ordem (ex: correlação com outros ativos durante o choque)
+    - Não modela volatilidade dinâmica (o mercado real tende a ficar mais volátil após choques)
+    - É uma ferramenta de **sensibilidade**, não de probabilidade
+    
+    **Uso recomendado:** avaliar a exposição nominal da carteira a movimentos extremos e dimensionar hedge.
+    """)
+
 st.divider()
 
 # -------- Distribuição de retornos --------
@@ -81,3 +121,14 @@ st.subheader("Distribuição de Retornos Diários")
 rets = metrics.daily_returns(close).tail(window)
 st.plotly_chart(charts.histogram_chart(rets.values, title="Histograma de Retornos", x_title="Retorno diário"),
                  use_container_width=True)
+
+with st.expander("📖 Metodologia — Distribuição de Retornos"):
+    st.markdown(f"""
+    O histograma mostra a frequência dos retornos diários do ativo nos últimos {window} pregões.
+    
+    **O que observar:**
+    - **Forma em sino** → distribuição aproximadamente normal (VaR paramétrico é confiável)
+    - **Assimetria negativa** (cauda esquerda mais longa) → perdas extremas são mais frequentes que ganhos extremos (comum em commodities)
+    - **Curtose alta** ("gordura nas caudas") → eventos extremos são mais prováveis que na normal → VaR paramétrico subestima o risco
+    - **Clusters de volatilidade** → períodos de alta volatilidade seguidos de alta volatilidade (efeito GARCH)
+    """)
