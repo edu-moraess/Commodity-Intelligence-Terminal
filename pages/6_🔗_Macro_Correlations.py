@@ -45,23 +45,35 @@ if any(macro_synthetic_flags.values()):
 
 # -------- Painel combinado --------
 panel = build_price_panel(price_data)
+if panel.empty:
+    st.error("❌ Não foi possível carregar dados de preço para os ativos selecionados. "
+             "Tente recarregar a página ou selecionar outros ativos.")
+    st.stop()
+
 panel.columns = [a.name for a in sel_assets if a.ticker in panel.columns]
 
 macro_panel = pd.DataFrame(macro_data).ffill()
-
-# 🛡️ CORREÇÃO: Remove o fuso horário dos índices para evitar o TypeError
-# "Cannot join tz-naive with tz-aware DatetimeIndex"
-if panel.index.tz is not None:
-    panel.index = panel.index.tz_localize(None)
-if macro_panel.index.tz is not None:
-    macro_panel.index = macro_panel.index.tz_localize(None)
-
 combined = panel.join(macro_panel, how="inner").dropna(how="all")
+
+if combined.empty or combined.shape[1] < 2:
+    st.error("❌ Dados insuficientes para calcular correlações. "
+             "O painel combinado está vazio ou tem menos de 2 séries válidas.")
+    st.stop()
+
+if combined.shape[0] < 30:
+    st.warning(f"⚠️ Apenas {combined.shape[0]} observações válidas — correlações podem ser instáveis.", icon="⚠️")
 
 st.subheader("Heatmap de Correlação — Commodities × Macro")
 window = st.slider("Janela (pregões)", 60, 500, 252, step=20)
 corr = correlation.correlation_matrix(combined, window=window)
-st.plotly_chart(charts.correlation_heatmap(corr, title=f"Correlação ({window} pregões)"), use_container_width=True)
+
+if corr.empty:
+    st.warning("⚠️ Matriz de correlação vazia — dados insuficientes ou séries muito curtas.")
+else:
+    st.plotly_chart(
+        charts.correlation_heatmap(corr, title=f"Correlação ({window} pregões)"),
+        use_container_width=True,
+    )
 
 st.divider()
 
@@ -74,10 +86,13 @@ with col2:
 roll_window = st.slider("Janela rolante (pregões)", 20, 250, 63, step=5)
 
 roll_corr = correlation.rolling_correlation(combined[asset_a], combined[asset_b], window=roll_window)
-st.plotly_chart(
-    charts.line_chart({f"Corr({asset_a}, {asset_b})": roll_corr}, title="Correlação Rolante", y_title="ρ"),
-    use_container_width=True,
-)
+if roll_corr.empty:
+    st.warning("⚠️ Dados insuficientes para correlação rolante.")
+else:
+    st.plotly_chart(
+        charts.line_chart({f"Corr({asset_a}, {asset_b})": roll_corr}, title="Correlação Rolante", y_title="ρ"),
+        use_container_width=True,
+    )
 
 st.divider()
 
