@@ -10,6 +10,7 @@ páginas de setor, evitando triplicar ~200 linhas de layout Streamlit.
 from __future__ import annotations
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 from config.settings import Asset, RISK_FREE_RATE_ANNUAL
 from data.data_manager import load_price_history_bulk, build_price_panel
@@ -40,12 +41,23 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         pdat = price_data[asset.ticker]
         close = pdat.df["Close"]
         row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
+        
+        # 🔧 Tratamento de NaN para exibição no card
+        last_price = row["last_price"]
+        delta = row["chg_1d"]
+        
+        if pd.isna(last_price) or last_price is None:
+            display_value = "N/D"
+            display_delta = None
+        else:
+            display_value = f"{last_price:.2f}"
+            display_delta = f"{delta:+.2%}" if delta is not None and not pd.isna(delta) else None
+        
         with cols[i % len(cols)]:
-            delta = row["chg_1d"]
             st.metric(
                 label=f"{asset.name} ({asset.unit})",
-                value=f"{row['last_price']:.2f}" if row["last_price"] else "—",
-                delta=f"{delta:+.2%}" if delta is not None else None,
+                value=display_value,
+                delta=display_delta,
             )
             if pdat.is_synthetic:
                 st.caption("🔸 simulado")
@@ -68,11 +80,16 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
             "Momentum": row["momentum"], "Tendência": row["trend"],
         })
     df_table = pd.DataFrame(table_rows).set_index("Ativo")
+    
+    # 🔧 Formatação com substituição de NaN por "-" usando na_rep
     pct_cols = ["1D", "1S", "1M", "YTD", "Vol. Anual.", "Max DD", "Momentum"]
+    float_cols = ["Último", "Sharpe", "Sortino", "Calmar"]
+    
+    style_dict = {col: "{:.2%}" for col in pct_cols}
+    style_dict.update({col: "{:.2f}" for col in float_cols})
+    
     st.dataframe(
-        df_table.style.format({c: "{:.2%}" for c in pct_cols} | {
-            "Último": "{:.2f}", "Sharpe": "{:.2f}", "Sortino": "{:.2f}", "Calmar": "{:.2f}",
-        }),
+        df_table.style.format(style_dict, na_rep="-"),
         use_container_width=True,
     )
 
@@ -84,24 +101,36 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
     selected_name = st.selectbox("Selecionar ativo", list(asset_names.keys()), key=f"sel_{sector_name}")
     selected_asset = asset_names[selected_name]
     selected_df = price_data[selected_asset.ticker].df
-    st.plotly_chart(
-        charts.candlestick_chart(selected_df.tail(180), title=f"{selected_asset.name} — 180 pregões"),
-        use_container_width=True,
-    )
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        cum_ret = metrics.cumulative_return_series(selected_df["Close"])
+    # 🔧 Verifica se há dados suficientes para o gráfico
+    if selected_df.empty or len(selected_df) < 2:
+        st.info(f"Dados insuficientes para exibir o gráfico de {selected_asset.name}.")
+    else:
         st.plotly_chart(
-            charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
+            charts.candlestick_chart(selected_df.tail(180), title=f"{selected_asset.name} — 180 pregões"),
             use_container_width=True,
         )
-    with col_b:
-        st.plotly_chart(
-            charts.bar_chart(["Volume médio (20d)"], [float(selected_df["Volume"].tail(20).mean())],
-                              title="Volume Médio Recente", positive_negative=False),
-            use_container_width=True,
-        )
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            cum_ret = metrics.cumulative_return_series(selected_df["Close"])
+            st.plotly_chart(
+                charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
+                use_container_width=True,
+            )
+        with col_b:
+            # 🔧 Tratamento para coluna de Volume (pode não existir)
+            try:
+                avg_volume = float(selected_df["Volume"].tail(20).mean())
+                if pd.isna(avg_volume):
+                    avg_volume = 0.0
+            except (KeyError, TypeError):
+                avg_volume = 0.0
+            st.plotly_chart(
+                charts.bar_chart(["Volume médio (20d)"], [avg_volume],
+                                  title="Volume Médio Recente", positive_negative=False),
+                use_container_width=True,
+            )
 
     st.divider()
 
@@ -110,8 +139,13 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         st.subheader(f"Correlação Intra-Setor — {sector_name}")
         panel = build_price_panel(price_data)
         panel.columns = [a.name for a in assets if a.ticker in panel.columns]
-        corr = correlation.correlation_matrix(panel, window=126)
-        st.plotly_chart(charts.correlation_heatmap(corr, title="Correlação (126 pregões)"), use_container_width=True)
+        
+        # 🔧 Se o painel tiver poucas colunas ou estiver vazio, pula
+        if panel.empty or panel.shape[1] < 2:
+            st.info("Dados insuficientes para calcular a matriz de correlação.")
+        else:
+            corr = correlation.correlation_matrix(panel, window=126)
+            st.plotly_chart(charts.correlation_heatmap(corr, title="Correlação (126 pregões)"), use_container_width=True)
 
     if any(a.note for a in assets):
         with st.expander("📌 Notas metodológicas de fonte de dados"):
