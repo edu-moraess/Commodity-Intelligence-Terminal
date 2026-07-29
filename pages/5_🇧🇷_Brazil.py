@@ -36,6 +36,26 @@ ref_data = pd.DataFrame([
 ]).set_index("Commodity")
 
 st.dataframe(ref_data, use_container_width=True)
+
+with st.expander("📖 Metodologia e Limitações desta Página"):
+    st.markdown("""
+    ### Fonte de Dados
+    
+    Os preços exibidos nos cards e tabelas acima são **preços internacionais de referência** (Brent para petróleo, futuros de Chicago para soja/milho, etc.), não preços FOB brasileiros.
+    
+    **Por quê?** O Brasil não possui bolsas de commodities com dados de preços em tempo real gratuitos e acessíveis via API pública. Os preços internacionais servem como proxy de alta correlação para a direção do mercado.
+    
+    ### Dados Estáticos de Exportação
+    
+    A tabela de compradores e portos é **referência qualitativa** compilada de relatórios do MDIC/Secex e ANTAQ. Não é atualizada automaticamente.
+    
+    ### Próximos Passos (Roadmap)
+    
+    - Integração com **ComexStat** (MDIC) para volumes e valores de exportação em tempo real
+    - Integração com **ANTAQ** para fluxo de cargas por porto
+    - Mapa de calor geográfico dos principais corredores de exportação
+    """)
+
 st.caption(
     "⚠️ Tabela de referência estática incluída apenas para contexto qualitativo — "
     "não deve ser usada como fonte de série temporal ou para decisões operacionais. "
