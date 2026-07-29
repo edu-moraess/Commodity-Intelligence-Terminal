@@ -22,7 +22,7 @@ def render_sector_page(
     assets: list[Asset],
     sector_name: str,
     sector_note: str = "",
-    methodology_text: str = "",  # NOVO: texto da metodologia específica do setor
+    methodology_text: str = "",  # NOVO: metodologia específica do setor
 ) -> None:
     st.title(f"{sector_name}")
     if sector_note:
