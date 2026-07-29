@@ -1,9 +1,7 @@
 """
 Commodity Intelligence Terminal — Entry Point
 =================================================
-Página inicial: overview do mercado, KPIs de topo e navegação para os
-módulos (Streamlit multipage — cada arquivo em pages/ vira uma página
-automaticamente, listada na sidebar).
+Página inicial com KPIs, gráfico de retorno acumulado e sidebar de navegação.
 """
 
 import streamlit as st
@@ -39,34 +37,43 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab"] {{ color: {THEME['text_muted']}; }}
     .stTabs [aria-selected="true"] {{ color: {THEME['accent']} !important; }}
     div[data-testid="stDataFrame"] {{ border: 1px solid {THEME['border']}; border-radius: 8px; }}
-    .small-caption {{ font-size: 0.8rem; color: {THEME['text_muted']}; }}
+    /* Ajuste para cards não truncarem números */
+    div[data-testid="stMetric"] > div:first-child {{ font-size: 1.1rem !important; }}
+    div[data-testid="stMetric"] > div:last-child {{ font-size: 1.4rem !important; font-weight: 600; }}
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# SIDEBAR
+# SIDEBAR – Navegação Unificada
 # --------------------------------------------------------------------------
 with st.sidebar:
     st.markdown(f"## {APP_ICON} {APP_NAME}")
     st.caption("Institutional Quant Research Platform")
     st.divider()
     
-    # Lista automática dos módulos (páginas)
-    try:
-        module_files = [f for f in os.listdir("pages") if f.endswith(".py")]
-        # Remove números e extensão para exibir nome amigável
-        module_names = []
-        for f in module_files:
-            # Ex: "1_🌍_Global_Dashboard.py" -> "🌍 Global Dashboard"
-            parts = f.replace(".py", "").split("_", 1)
-            if len(parts) == 2:
-                name = parts[1].replace("_", " ")
-            else:
-                name = parts[0].replace("_", " ")
-            module_names.append(name)
-        st.markdown("**Módulos:**\n" + "\n".join([f"- {m}" for m in module_names]))
-    except FileNotFoundError:
-        # Fallback caso a pasta pages não exista (ambiente de desenvolvimento)
+    # Obtém lista de páginas automaticamente
+    pages_dir = "pages"
+    if os.path.exists(pages_dir):
+        # Mapeia ícones baseados no nome do arquivo
+        icon_map = {
+            "global": "🌍", "energy": "🛢️", "metals": "⚙️", "agriculture": "🌾",
+            "brasil": "🇧🇷", "macro": "🔗", "risk": "⚠️", "forecast": "📈", "quant": "🧮"
+        }
+        # Lista os arquivos .py na ordem desejada
+        page_files = sorted([f for f in os.listdir(pages_dir) if f.endswith(".py")])
+        for file in page_files:
+            # Extrai nome amigável
+            name = file.replace(".py", "").split("_", 1)[-1].replace("_", " ").title()
+            # Tenta achar ícone
+            icon = "📄"
+            for key, val in icon_map.items():
+                if key in file.lower():
+                    icon = val
+                    break
+            # Cria link na sidebar
+            st.sidebar.page_link(f"pages/{file}", label=f"{icon} {name}")
+    else:
+        # Fallback caso a pasta não exista
         st.markdown(
             "**Módulos:**\n"
             "- 🌍 Dashboard Global\n"
@@ -79,16 +86,14 @@ with st.sidebar:
             "- 📈 Forecast\n"
             "- 🧮 Quant Research"
         )
-
+    
     st.divider()
     st.caption("Fontes: Yahoo Finance · FRED · fallback sintético automático")
     
-    # Botão de atualização
     if st.button("🔄 Atualizar dados (limpar cache)"):
         st.cache_data.clear()
         st.rerun()
     
-    # Timestamp da última atualização
     st.caption(f"📅 {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # --------------------------------------------------------------------------
@@ -110,7 +115,7 @@ quick_assets = [
 with st.spinner("Carregando cotações..."):
     price_data = load_price_history_bulk(quick_assets)
 
-# Exibe cards com tratamento de NaN
+# Exibe cards com tratamento de NaN e formatação melhorada
 cols = st.columns(len(quick_assets))
 for col, asset in zip(cols, quick_assets):
     pdat = price_data[asset.ticker]
@@ -119,11 +124,13 @@ for col, asset in zip(cols, quick_assets):
     if not close.empty and pd.notna(close.iloc[-1]):
         last_price = close.iloc[-1]
         chg = metrics.pct_change_over(close, 1)
-        display_price = f"{last_price:.2f}"
+        # Formata com 2 decimais (ou mais se necessário)
+        if abs(last_price) < 100:
+            display_price = f"{last_price:.2f}"
+        else:
+            display_price = f"{last_price:.2f}"
         display_delta = f"{chg:+.2%}" if pd.notna(chg) else None
     else:
-        last_price = None
-        chg = None
         display_price = "N/D"
         display_delta = None
     
@@ -135,18 +142,19 @@ for col, asset in zip(cols, quick_assets):
         )
         if pdat.is_synthetic:
             st.caption("🔸 simulado")
+        else:
+            st.caption("")  # espaço vazio para alinhar
 
 st.divider()
 
 # --------------------------------------------------------------------------
-# GRÁFICO DE RETORNO ACUMULADO (com seletor de período)
+# GRÁFICO DE RETORNO ACUMULADO
 # --------------------------------------------------------------------------
 col_left, col_right = st.columns([2, 1])
 
 with col_left:
     st.subheader("Visão Geral — Retorno Acumulado")
     
-    # Seletor de período
     period_days = st.selectbox("Período", [30, 60, 90, 180, 365], index=2, key="period_selector")
     
     cum_returns = {}
@@ -156,10 +164,9 @@ with col_left:
             cum = metrics.cumulative_return_series(ser).tail(period_days)
             cum_returns[a.name] = cum
         else:
-            # Se não houver dados, adiciona série vazia
             cum_returns[a.name] = pd.Series(dtype=float)
     
-    # Se todos os dados forem simulados, exibe aviso
+    # Aviso se algum ativo estiver em fallback
     any_synth = any(pdat.is_synthetic for pdat in price_data.values())
     if any_synth:
         st.caption("⚠️ Alguns ativos podem estar exibindo dados simulados (🔸)")
