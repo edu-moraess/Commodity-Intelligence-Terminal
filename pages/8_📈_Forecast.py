@@ -58,6 +58,36 @@ st.plotly_chart(
     use_container_width=True,
 )
 
+with st.expander("📖 Metodologia — Monte Carlo & Fan Chart"):
+    st.markdown(f"""
+    ### Simulação Monte Carlo (Block Bootstrap)
+    
+    Em vez de assumir que os retornos são independentes e identicamente distribuídos (i.i.d.) como num GBM clássico, usamos **block bootstrap** com blocos de 5 pregões. Isso preserva parcialmente:
+    - **Autocorrelação** — a memória de curto prazo dos retornos
+    - **Clusters de volatilidade** — períodos de alta/baixa volatilidade tendem a persistir
+    
+    **Parâmetros desta simulação:**
+    - Horizonte: **{horizon_days} dias**
+    - Simulações: **{n_sims:,} trajetórias**
+    - Lookback histórico: 504 pregões (~2 anos)
+    - Tamanho do bloco: 5 pregões
+    
+    ### Cenários
+    
+    | Cenário | Percentil | Interpretação |
+    |---------|-----------|---------------|
+    | Pessimista (P10) | 10º percentil | Pior cenário que não foi superado em 90% das simulações |
+    | Base (Mediana/P50) | 50º percentil | Cenário mais provável — metade das simulações acima, metade abaixo |
+    | Otimista (P90) | 90º percentil | Melhor cenário que não foi superado em 10% das simulações |
+    
+    **Probabilidade de alta:** fração das trajetórias simuladas que terminam acima do preço atual.
+    
+    ### Limitações
+    - Não incorpora eventos geopolíticos, mudanças de política monetária ou choques de oferta/demanda fora do padrão histórico
+    - Assume que o regime de volatilidade histórico se repete
+    - A mediana não é uma "previsão pontual" — é o centro da distribuição de incerteza
+    """)
+
 st.divider()
 
 st.subheader("Baseline de Tendência (Regressão)")
@@ -69,6 +99,18 @@ st.plotly_chart(
     use_container_width=True,
 )
 
+with st.expander("📖 Metodologia — Regressão de Tendência"):
+    st.markdown(f"""
+    O modelo ajusta `log(Preço) ~ tempo` usando **{trend_model}** sobre os últimos 252 pregões e projeta {horizon_days} dias à frente.
+    
+    **Modelos disponíveis:**
+    - **Linear:** mínimos quadrados ordinários — assume relação puramente linear no log-preço
+    - **Ridge:** regressão linear com regularização L2 (penaliza coeficientes grandes) — mais estável quando há multicolinearidade
+    - **Lasso:** regressão linear com regularização L1 (tende a zerar coeficientes) — útil para seleção automática de variáveis (neste caso, apenas como baseline comparativo)
+    
+    **Limitação:** é um modelo determinístico — não captura incerteza. Use-o como **baseline** para comparar com a dispersão do Monte Carlo.
+    """)
+
 st.divider()
 
 st.subheader("Distribuição de Preços Finais (Monte Carlo)")
@@ -79,10 +121,14 @@ st.plotly_chart(
     use_container_width=True,
 )
 
-st.info(
-    "Metodologia: simulação de blocos (block bootstrap, tamanho 5) sobre os retornos diários "
-    "dos últimos 504 pregões, preservando parcialmente a autocorrelação e os clusters de "
-    "volatilidade observados historicamente — mais realista que um GBM i.i.d. puro. Não incorpora "
-    "eventos geopolíticos ou de oferta/demanda fora do padrão histórico recente.",
-    icon="ℹ️",
-)
+with st.expander("📖 Metodologia — Distribuição de Preços Finais"):
+    st.markdown("""
+    O histograma mostra a distribuição dos preços finais ao término do horizonte, extraídos das trajetórias de Monte Carlo.
+    
+    **O que observar:**
+    - **Assimetria:** commodities tendem a ter caudas mais pesadas à esquerda (quedas abruptas)
+    - **Bimodalidade:** pode indicar regimes de mercado distintos (ex: contango vs. backwardation)
+    - **Concentração em torno da mediana:** se a distribuição for muito "espalhada", a incerteza é alta
+    
+    **Comparar com a regressão:** se a mediana do Monte Carlo diverge muito da projeção linear, isso indica que a dinâmica histórica (volatilidade, skewness) está puxando a distribuição para longe da tendência pura.
+    """)
