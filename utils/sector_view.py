@@ -18,10 +18,21 @@ from analytics import metrics, correlation
 from charts import plotly_charts as charts
 
 
-def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str = "") -> None:
+def render_sector_page(
+    assets: list[Asset],
+    sector_name: str,
+    sector_note: str = "",
+    methodology_text: str = "",  # NOVO: texto da metodologia específica do setor
+) -> None:
     st.title(f"{sector_name}")
     if sector_note:
         st.caption(sector_note)
+
+    # -------- METODOLOGIA GERAL DO SETOR (expander no topo) --------
+    if methodology_text:
+        with st.expander("📘 Metodologia Geral do Setor", expanded=False):
+            st.markdown(methodology_text)
+        st.divider()
 
     with st.spinner(f"Carregando dados de {sector_name}..."):
         price_data = load_price_history_bulk(assets)
@@ -42,7 +53,7 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         close = pdat.df["Close"]
         row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
         
-        # 🔧 Tratamento de NaN para exibição no card
+        # Tratamento de NaN
         last_price = row["last_price"]
         delta = row["chg_1d"]
         
@@ -81,7 +92,6 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         })
     df_table = pd.DataFrame(table_rows).set_index("Ativo")
     
-    # 🔧 Formatação com substituição de NaN por "-" usando na_rep
     pct_cols = ["1D", "1S", "1M", "YTD", "Vol. Anual.", "Max DD", "Momentum"]
     float_cols = ["Último", "Sharpe", "Sortino", "Calmar"]
     
@@ -93,6 +103,48 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         use_container_width=True,
     )
 
+    # -------- Expander com fórmulas das métricas (genérico para todos os setores) --------
+    with st.expander("📐 Como as métricas são calculadas? (Fórmulas)"):
+        st.markdown(r"""
+        **Retornos (1D, 1S, 1M, YTD):** Variação percentual simples entre o preço atual e o preço de \(n\) dias atrás.
+        
+        **Volatilidade Anualizada:**
+        $$
+        \sigma_{\text{anual}} = \sigma_{\text{diário}} \times \sqrt{252}
+        $$
+        
+        **Sharpe Ratio (Sharpe, 1966):**
+        $$
+        \text{Sharpe} = \frac{\bar{R} - R_f}{\sigma}
+        $$
+        onde \(\bar{R}\) é o retorno médio diário (anualizado), \(R_f\) é a taxa livre de risco (4.5% a.a.), e \(\sigma\) é o desvio padrão anualizado.
+        
+        **Sortino Ratio (Sortino & Price, 1994):**
+        $$
+        \text{Sortino} = \frac{\bar{R} - R_f}{\sigma_{\text{down}}}
+        $$
+        onde \(\sigma_{\text{down}}\) é o desvio padrão **apenas** dos retornos negativos (downside deviation).
+        
+        **Máximo Drawdown (MDD):**
+        $$
+        \text{MDD} = \max_{t} \left( \frac{\max_{s \leq t} P_s - P_t}{\max_{s \leq t} P_s} \right)
+        $$
+        mede a maior queda acumulada do preço de um pico a um vale (janela de 252 pregões).
+        
+        **Calmar Ratio:**
+        $$
+        \text{Calmar} = \frac{\text{Retorno Acumulado (252d)}}{|\text{MDD}|}
+        $$
+        Quanto maior, melhor o desempenho ajustado à pior perda histórica.
+        
+        **Momentum Composto:** Combinação ponderada dos retornos de 1, 3, 6 e 12 meses (pesos: 0.4, 0.3, 0.2, 0.1).
+        
+        **Tendência:** Classificação baseada no momentum:
+        - `bullish` (alta) se momentum > 0.05
+        - `bearish` (baixa) se momentum < -0.05
+        - `sideways` (lateral) caso contrário.
+        """)
+
     st.divider()
 
     # -------- Candlestick individual --------
@@ -102,7 +154,6 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
     selected_asset = asset_names[selected_name]
     selected_df = price_data[selected_asset.ticker].df
 
-    # 🔧 Verifica se há dados suficientes para o gráfico
     if selected_df.empty or len(selected_df) < 2:
         st.info(f"Dados insuficientes para exibir o gráfico de {selected_asset.name}.")
     else:
@@ -119,7 +170,6 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
                 use_container_width=True,
             )
         with col_b:
-            # 🔧 Tratamento para coluna de Volume (pode não existir)
             try:
                 avg_volume = float(selected_df["Volume"].tail(20).mean())
                 if pd.isna(avg_volume):
@@ -140,13 +190,13 @@ def render_sector_page(assets: list[Asset], sector_name: str, sector_note: str =
         panel = build_price_panel(price_data)
         panel.columns = [a.name for a in assets if a.ticker in panel.columns]
         
-        # 🔧 Se o painel tiver poucas colunas ou estiver vazio, pula
         if panel.empty or panel.shape[1] < 2:
             st.info("Dados insuficientes para calcular a matriz de correlação.")
         else:
             corr = correlation.correlation_matrix(panel, window=126)
             st.plotly_chart(charts.correlation_heatmap(corr, title="Correlação (126 pregões)"), use_container_width=True)
 
+    # -------- Notas metodológicas de fonte de dados --------
     if any(a.note for a in assets):
         with st.expander("📌 Notas metodológicas de fonte de dados"):
             for a in assets:
