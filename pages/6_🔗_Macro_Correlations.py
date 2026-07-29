@@ -6,7 +6,8 @@ from data.data_manager import load_price_history_bulk, load_macro_series, build_
 from analytics import correlation
 from charts import plotly_charts as charts
 
-st.set_page_config(page_title=f"Macro — {APP_NAME}", page_icon="🔗", layout="wide")
+# NOTA v4.5.0: st.set_page_config() removido daqui — agora é chamado
+# uma única vez em app.py, antes de st.navigation(...).run().
 
 st.title("🔗 Macroeconomia & Correlações")
 st.caption(
@@ -75,22 +76,6 @@ else:
         use_container_width=True,
     )
 
-with st.expander("📖 Metodologia — Correlação de Pearson"):
-    st.markdown(f"""
-    O heatmap exibe o **coeficiente de correlação de Pearson (ρ)** entre os **retornos diários** de cada par de séries, calculado sobre uma janela móvel de **{window} pregões**.
-    
-    **Fórmula:** ρ(X,Y) = Cov(X,Y) / (σₓ × σᵧ)
-    
-    | ρ | Interpretação |
-    |---|---------------|
-    | +1.0 | Movimentos perfeitamente sincronizados |
-    | +0.5 a +0.9 | Correlação positiva forte (comum entre commodities e DXY inverso) |
-    | 0 a ±0.3 | Correlação fraca ou nula |
-    | –0.5 a –0.9 | Correlação negativa forte (ex: ouro vs DXY) |
-    
-    **⚠️ Atenção:** Correlação ≠ causalidade. Uma correlação alta pode ser espúria (ambas respondendo a um terceiro fator, como liquidez global). Além disso, correlações são instáveis no tempo — por isso incluímos a análise rolante abaixo.
-    """)
-
 st.divider()
 
 st.subheader("Correlação Rolante")
@@ -110,19 +95,6 @@ else:
         use_container_width=True,
     )
 
-with st.expander("📖 Metodologia — Correlação Rolante"):
-    st.markdown(f"""
-    A correlação rolante calcula o coeficiente de Pearson em uma **janela móvel de {roll_window} pregões**, deslizando dia após dia ao longo da série histórica.
-    
-    **Por que usar?**  
-    A correlação entre ativos **não é constante**. Em crises, correlações tendem a convergir para +1 (tudo cai junto). Em períodos normais, podem ser mais baixas. A série rolante revela essa evolução temporal.
-    
-    **Como interpretar:**
-    - Linha subindo → as séries estão ficando mais sincronizadas
-    - Linha cruzando zero → a relação inverteu de sinal
-    - Picos abruptos → eventos de stress de mercado
-    """)
-
 st.divider()
 
 st.subheader("PCA — Componentes Principais dos Retornos")
@@ -137,22 +109,3 @@ if pca_result["explained_variance_ratio"]:
     st.dataframe(pca_result["loadings"].style.format("{:.3f}"), use_container_width=True)
 else:
     st.info("Selecione ao menos 2 ativos com histórico suficiente para calcular PCA.")
-
-with st.expander("📖 Metodologia — Análise de Componentes Principais (PCA)"):
-    st.markdown("""
-    O PCA é uma técnica de redução de dimensionalidade que transforma as séries de retornos em componentes ortogonais (independentes), ordenados por quanto de variância explicam.
-    
-    **Como funciona:**
-    1. Calcula a matriz de covariância dos retornos diários
-    2. Aplica decomposição em valores singulares (SVD)
-    3. Os autovetores são os "loadings" (pesos de cada ativo no componente)
-    4. Os autovalores determinam a variância explicada
-    
-    **Interpretação prática:**
-    - **PC1** geralmente captura o "fator mercado" — o movimento comum de todas as commodities
-    - **PC2** pode capturar a divergência entre energia vs. metais/agricultura
-    - Se PC1 explica > 70% da variância, o universo é altamente correlacionado (pouca diversificação)
-    - Se a variância está espalhada entre vários PCs, há mais independência entre os ativos
-    
-    **Loadings:** valores positivos altos indicam que o ativo contribui fortemente na direção daquele componente; valores negativos indicam contribuição na direção oposta.
-    """)
