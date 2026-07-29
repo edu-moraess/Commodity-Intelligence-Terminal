@@ -2,7 +2,7 @@
 DataManager — Camada Unificada de Dados
 ==========================================
 Ponto único de acesso a dados de preço e macro no terminal. Responsável por:
-  1. Tentar a fonte real (Yahoo Finance / FRED) com retry mechanism.
+  1. Tentar a fonte real (Yahoo Finance / FRED API) com retry mechanism.
   2. Cachear em memória (via st.cache_data) para performance.
   3. Fazer fallback automático e transparente para dados sintéticos,
      marcando a série com `is_synthetic=True`.
@@ -15,23 +15,15 @@ import pandas as pd
 import numpy as np
 import time
 import yfinance as yf
+import requests
 import streamlit as st
+import os
 
 from config.settings import Asset, DEFAULT_LOOKBACK_DAYS
 from utils.logger import get_logger
 
 logger = get_logger("data_manager")
 
-# -----------------------------------------------------------------------------
-# Tenta importar pandas_datareader apenas se disponível
-# Caso contrário, usa fallback sintético para todas as séries macro
-# -----------------------------------------------------------------------------
-try:
-    from pandas_datareader import data as pdr
-    _HAS_PDR = True
-except (ImportError, ModuleNotFoundError):
-    _HAS_PDR = False
-    logger.warning("pandas_datareader não disponível. Séries FRED usarão fallback sintético.")
 
 @dataclass
 class PriceData:
@@ -89,31 +81,64 @@ def _fetch_yahoo_with_retry(ticker: str, period_days: int, max_retries: int = 3)
     raise RuntimeError(f"Falha ao obter dados para {ticker} após {max_retries} tentativas. Último erro: {last_error}")
 
 
-def _fetch_fred_with_retry(series_code: str, max_retries: int = 3) -> pd.Series:
+def _fetch_fred_via_api(series_code: str, max_retries: int = 3) -> pd.Series:
     """
-    Tenta buscar série do FRED usando pandas_datareader (se disponível).
-    Se não estiver disponível, levanta exceção para trigger do fallback.
+    Busca série do FRED usando a API REST diretamente (sem pandas_datareader).
+    Requer FRED_API_KEY configurada nas secrets.
     """
-    if not _HAS_PDR:
-        raise RuntimeError("pandas_datareader não instalado. Use fallback sintético.")
+    # Tenta obter a chave das secrets do Streamlit ou variável de ambiente
+    api_key = None
+    try:
+        api_key = st.secrets.get("FRED_API_KEY")
+    except Exception:
+        pass
+    if not api_key:
+        api_key = os.environ.get("FRED_API_KEY")
+    
+    if not api_key:
+        raise RuntimeError("FRED_API_KEY não configurada. Use fallback sintético.")
+    
+    url = "https://api.stlouisfed.org/fred/series/observations"
+    params = {
+        "series_id": series_code,
+        "api_key": api_key,
+        "file_type": "json",
+        "sort_order": "asc",
+        "limit": 100000,
+    }
     
     last_error = None
     for attempt in range(max_retries):
         try:
-            # Usa a API do FRED (necessita da chave configurada nas secrets)
-            series = pdr.DataReader(series_code, "fred")
-            if series.empty:
-                raise ValueError(f"Série {series_code} vazia")
-            # Pega a coluna (geralmente é a única)
-            series = series.iloc[:, 0]
-            logger.info(f"Série FRED {series_code} obtida com sucesso")
-            return series
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            
+            observations = data.get("observations", [])
+            if not observations:
+                raise ValueError(f"Nenhuma observação para {series_code}")
+            
+            # Converte para DataFrame
+            df = pd.DataFrame(observations)
+            df["date"] = pd.to_datetime(df["date"])
+            df["value"] = pd.to_numeric(df["value"], errors="coerce")
+            df = df.dropna(subset=["value"])
+            df = df.set_index("date")["value"]
+            
+            # Ordena e preenche forward fill (dados podem ser mensais)
+            df = df.sort_index()
+            df = df.asfreq('D').ffill()
+            
+            logger.info(f"Série FRED {series_code} obtida via API REST com sucesso")
+            return df
+            
         except Exception as e:
             last_error = e
             logger.warning(f"Tentativa {attempt+1}/{max_retries} falhou para FRED {series_code}: {e}")
             if attempt < max_retries - 1:
                 time.sleep(2 ** (attempt + 1))
             continue
+    
     raise RuntimeError(f"Falha ao obter série FRED {series_code} após {max_retries} tentativas. Último erro: {last_error}")
 
 
@@ -163,7 +188,7 @@ def load_macro_series_cached(series_code: str, days: int) -> tuple[pd.Series, bo
     Retorna (série, is_synthetic).
     """
     try:
-        s = _fetch_fred_with_retry(series_code)
+        s = _fetch_fred_via_api(series_code)
         return s, False
     except Exception as e:
         logger.warning(f"Fallback sintético ativado para série FRED {series_code}: {e}")
