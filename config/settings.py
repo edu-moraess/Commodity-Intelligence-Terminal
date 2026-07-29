@@ -1,29 +1,26 @@
 """
-Commodity Intelligence Terminal — Configuração Central
-=========================================================
+Commodity Intelligence Terminal — Configuração Central (v4.4.0)
+================================================================
 Define o universo de ativos, mapeamento de tickers (Yahoo Finance / FRED),
 parâmetros de cache e constantes globais da aplicação.
 
-NOTA DE ENGENHARIA:
-- Nem toda commodity possui um futuro líquido e diretamente disponível no
-  Yahoo Finance (ex: Carvão, Níquel, Zinco, Minério de Ferro). Nesses casos
-  usamos o melhor proxy público disponível (ETF ou contrato correlato) e
-  isso fica documentado no campo `note` de cada ativo. Trocar por uma fonte
-  paga (Refinitiv, Bloomberg, CME DataMine, S&P Platts) é uma troca de uma
-  linha em `data/sources/`, sem refatoração estrutural.
+CHANGELOG v4.4.0:
+- Tickers sem liquidez no Yahoo (ALI=F, TIO=F) forçados para source="synthetic"
+  evitando retry demorado e timeout na inicialização.
+- CACHE_TTL_SECONDS aumentado para 900s (15 min) para reduzir chamadas à API.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
 @dataclass(frozen=True)
 class Asset:
-    ticker: str          # símbolo na fonte de dados (Yahoo Finance por padrão)
-    name: str             # nome de exibição
-    category: str         # Energia | Metais | Agricultura
-    unit: str             # unidade de cotação
-    source: str = "yahoo"  # yahoo | fred | synthetic
+    ticker: str
+    name: str
+    category: str
+    unit: str
+    source: str = "yahoo"
     note: Optional[str] = None
 
 
@@ -47,10 +44,14 @@ METALS_ASSETS: list[Asset] = [
     Asset("GC=F", "Ouro", "Metais", "USD/oz t"),
     Asset("SI=F", "Prata", "Metais", "USD/oz t"),
     Asset("HG=F", "Cobre", "Metais", "USD/lb"),
-    Asset("ALI=F", "Alumínio", "Metais", "USD/t"),
+    # FIX v4.4.0: ALI=F não existe no Yahoo Finance — força sintético
+    Asset("ALI=F", "Alumínio", "Metais", "USD/t", source="synthetic",
+          note="Futuro de alumínio não disponível no Yahoo Finance — dados sintéticos."),
     Asset("LIT", "Lítio (Global X Lithium ETF — proxy)", "Metais", "USD",
           note="Proxy via ETF; integrar Fastmarkets/Benchmark Mineral Intelligence para preço spot direto."),
-    Asset("TIO=F", "Minério de Ferro (SGX)", "Metais", "USD/t"),
+    # FIX v4.4.0: TIO=F (SGX Iron Ore) não existe no Yahoo Finance — força sintético
+    Asset("TIO=F", "Minério de Ferro (SGX)", "Metais", "USD/t", source="synthetic",
+          note="SGX Iron Ore não disponível no Yahoo Finance — dados sintéticos."),
     Asset("PICK", "Níquel & Zinco (iShares Metals & Mining — proxy)", "Metais", "USD",
           note="Sem contrato LME direto no Yahoo; proxy setorial até integração de fonte paga (LME Select)."),
 ]
@@ -70,7 +71,8 @@ ALL_ASSETS: list[Asset] = ENERGY_ASSETS + METALS_ASSETS + AGRI_ASSETS
 
 BRAZIL_ASSETS: list[Asset] = [
     Asset("BZ=F", "Petróleo (Brasil exporta Brent-like)", "Brasil", "USD/bbl"),
-    Asset("TIO=F", "Minério de Ferro", "Brasil", "USD/t"),
+    # FIX v4.4.0: TIO=F forçado para synthetic
+    Asset("TIO=F", "Minério de Ferro", "Brasil", "USD/t", source="synthetic"),
     Asset("ZS=F", "Soja", "Brasil", "USd/bu"),
     Asset("ZC=F", "Milho", "Brasil", "USd/bu"),
     Asset("KC=F", "Café", "Brasil", "USd/lb"),
@@ -97,9 +99,9 @@ MACRO_SERIES: dict[str, dict] = {
 
 APP_NAME = "Commodity Intelligence Terminal"
 APP_ICON = "🛢️"
-DEFAULT_LOOKBACK_DAYS = 730           # 2 anos de histórico padrão
-CACHE_TTL_SECONDS = 15 * 60           # 15 minutos
-RISK_FREE_RATE_ANNUAL = 0.045         # usado em Sharpe/Sortino (ajustável via .env)
+DEFAULT_LOOKBACK_DAYS = 730
+CACHE_TTL_SECONDS = 900          # 15 minutos (aumentado de 300)
+RISK_FREE_RATE_ANNUAL = 0.045
 
 FORECAST_HORIZONS = {
     "7 dias": 7,
