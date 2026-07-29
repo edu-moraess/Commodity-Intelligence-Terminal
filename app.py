@@ -1,14 +1,8 @@
 """
-Commodity Intelligence Terminal — Entry Point (Home)
-=====================================================
+Commodity Intelligence Terminal — Entry Point (app.py)
+=========================================================
 Página inicial com KPIs, gráfico de retorno acumulado.
 A navegação é feita automaticamente pelo Streamlit via pasta pages/.
-
-CHANGELOG v4.4.0:
-- Renomeado de CommodityIntelligenceTerminal—EntryP.py para Home.py
-  evitando nome truncado e duplicado na sidebar.
-- load_price_history_bulk agora usa batch download (muito mais rápido).
-- Cards com tratamento de NaN aprimorado.
 """
 
 import streamlit as st
@@ -79,7 +73,6 @@ quick_assets = [
 with st.spinner("Carregando cotações..."):
     price_data = load_price_history_bulk(quick_assets)
 
-# Exibe cards com tratamento de NaN e formatação melhorada
 cols = st.columns(len(quick_assets))
 for col, asset in zip(cols, quick_assets):
     pdat = price_data.get(asset.ticker)
@@ -103,7 +96,7 @@ for col, asset in zip(cols, quick_assets):
         if pdat.is_synthetic:
             st.caption("🔸 simulado")
         else:
-            st.caption("")  # placeholder para alinhamento
+            st.caption("")
 
 st.divider()
 
@@ -139,7 +132,7 @@ with col_left:
         st.warning("⚠️ Nenhum dado de retorno disponível para o período selecionado.")
 
 # --------------------------------------------------------------------------
-# SOBRE A PLATAFORMA
+# SOBRE A PLATAFORMA + METODOLOGIA
 # --------------------------------------------------------------------------
 with col_right:
     st.subheader("Sobre a Plataforma")
@@ -151,6 +144,14 @@ with col_right:
         "automático para dados simulados (badge 🔸), garantindo que o terminal nunca "
         "quebre em produção."
     )
+    
+    with st.expander("📖 Metodologia das Métricas Rápidas"):
+        st.markdown("""
+        **Variação 1D** — retorno do último pregão em relação ao anterior.  
+        **Retorno Acumulado** — produto dos retornos diários +1, acumulado ao longo do período selecionado.  
+        Mostra o desempenho relativo entre ativos no mesmo horizonte temporal.
+        """)
+    
     st.info(
         "Módulos avançados (NLP de notícias, ESG, Supply Chain/Sankey, geopolítica em mapa, "
         "modelos VAR/VECM/HMM/deep learning) estão no roadmap — ver README.",
