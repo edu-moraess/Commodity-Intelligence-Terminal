@@ -58,6 +58,29 @@ st.plotly_chart(
     use_container_width=True,
 )
 
+with st.expander("📖 Metodologia — GARCH(1,1)"):
+    st.markdown(f"""
+    ### Modelo GARCH(1,1)
+    
+    O GARCH (Generalized Autoregressive Conditional Heteroskedasticity) modela a volatilidade como um processo que depende do próprio passado:
+    
+    **σ²ₜ = ω + α·r²ₜ₋₁ + β·σ²ₜ₋₁**
+    
+    | Parâmetro | Significado | Interpretação |
+    |-----------|-------------|---------------|
+    | **ω (omega)** | Variância de longo prazo | Quanto maior, maior a volatilidade média do ativo |
+    | **α (alpha)** | Reação a choques recentes | Quanto maior, mais a volatilidade reage a movimentos bruscos de preço |
+    | **β (beta)** | Persistência da volatilidade | Quanto maior, mais tempo a volatilidade leva para voltar à média |
+    | **Persistência (α+β)** | Memória do processo | Se próximo de 1, choques são muito persistentes; se < 0.5, volatilidade volta rápido à média |
+    
+    **Previsão 1 dia:** σ²ₜ₊₁ = ω + α·r²ₜ + β·σ²ₜ
+    
+    ### EWMA (RiskMetrics)
+    Método mais simples onde a volatilidade é uma média móvel exponencial dos retornos ao quadrado, com fator de decaimento λ = 0.94. É um caso limite do GARCH onde ω = 0 e α+β = 1.
+    
+    **Janela de estimação desta rodada:** {lookback} pregões.
+    """)
+
 st.divider()
 
 # ============================================================
@@ -109,6 +132,25 @@ if st.button("Rodar Walk-Forward Validation", type="primary"):
     st.success(f"Melhor modelo por RMSE fora da amostra: **{best}**")
 else:
     st.info("Configure os parâmetros e clique em **Rodar Walk-Forward Validation**.")
+
+with st.expander("📖 Metodologia — Walk-Forward Validation"):
+    st.markdown(f"""
+    ### Por que não usar apenas in-sample?
+    Ajustar um modelo em toda a série histórica e testar no mesmo dados gera **otimismo de seleção** — o modelo parece melhor do que realmente é. O walk-forward simula como o modelo seria usado na prática: treina numa janela, prevê o próximo ponto, desliza a janela e repete.
+    
+    ### Como funciona
+    1. **Janela de treino:** {train_window} pregões (~{train_window//21:.0f} meses)
+    2. **Previsão:** 1 passo à frente (próximo pregão)
+    3. **Erro:** `|exp(pred_log) – exp(real_log)|` em unidades de preço
+    4. **Deslizamento:** a janela avança e o modelo é **reajustado do zero**
+    5. **Folds:** {n_folds} iterações, cobrindo diferentes regimes de mercado
+    
+    ### Métricas
+    - **MAE (Mean Absolute Error):** erro médio absoluto — robusto a outliers
+    - **RMSE (Root Mean Squared Error):** penaliza erros grandes mais severamente
+    
+    **Interpretação:** o modelo com menor RMSE fora da amostra tem melhor capacidade preditiva genuína. Não necessariamente o mais complexo — às vezes Ridge supera Lasso por ser mais estável.
+    """)
 
 st.divider()
 st.caption(
