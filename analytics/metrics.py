@@ -1,9 +1,11 @@
 """
-Analytics — Métricas de Série de Preço
-==========================================
+Analytics — Métricas de Série de Preço (v4.4.0)
+==================================================
 Funções puras (sem estado, sem I/O) sobre pd.Series de preços de fechamento.
-Cada função assume índice DatetimeIndex ordenado ascendente e ausência de
-NaN internos relevantes (o DataManager já faz ffill).
+
+CHANGELOG v4.4.0:
+- summary_row() agora aceita parâmetro `window` opcional, usado pelo
+  Risk Analytics para respeitar a janela selecionada pelo usuário.
 """
 
 from __future__ import annotations
@@ -127,22 +129,32 @@ def cumulative_return_series(close: pd.Series) -> pd.Series:
 
 
 def summary_row(close: pd.Series, benchmark_close: pd.Series | None = None,
-                 risk_free_annual: float = 0.045) -> dict:
-    """Monta a linha completa de métricas para o Dashboard Global."""
+                 risk_free_annual: float = 0.045, window: int | None = None) -> dict:
+    """Monta a linha completa de métricas para o Dashboard Global.
+    
+    CHANGELOG v4.4.0: adicionado parâmetro `window` para filtrar dados
+    antes do cálculo das métricas (usado pelo Risk Analytics).
+    """
+    # Aplica janela se especificada
+    if window is not None and window > 0:
+        close_windowed = close.tail(window)
+    else:
+        close_windowed = close
+    
     row = {
-        "last_price": float(close.iloc[-1]) if len(close) else None,
-        "chg_1d": pct_change_over(close, 1),
-        "chg_1w": pct_change_over(close, 5),
-        "chg_1m": pct_change_over(close, 21),
-        "chg_ytd": ytd_return(close),
-        "vol_annual": annualized_volatility(close, window=63),
-        "sharpe": sharpe_ratio(close, risk_free_annual, window=252),
-        "sortino": sortino_ratio(close, risk_free_annual, window=252),
-        "max_drawdown": max_drawdown(close.tail(252)),
-        "calmar": calmar_ratio(close, window=252),
-        "momentum": momentum_score(close),
-        "trend": trend_label(close),
+        "last_price": float(close_windowed.iloc[-1]) if len(close_windowed) else None,
+        "chg_1d": pct_change_over(close_windowed, 1),
+        "chg_1w": pct_change_over(close_windowed, 5),
+        "chg_1m": pct_change_over(close_windowed, 21),
+        "chg_ytd": ytd_return(close_windowed),
+        "vol_annual": annualized_volatility(close_windowed, window=63),
+        "sharpe": sharpe_ratio(close_windowed, risk_free_annual, window=252),
+        "sortino": sortino_ratio(close_windowed, risk_free_annual, window=252),
+        "max_drawdown": max_drawdown(close_windowed.tail(252)),
+        "calmar": calmar_ratio(close_windowed, window=252),
+        "momentum": momentum_score(close_windowed),
+        "trend": trend_label(close_windowed),
     }
     if benchmark_close is not None:
-        row["beta"] = beta(close, benchmark_close)
+        row["beta"] = beta(close_windowed, benchmark_close)
     return row
