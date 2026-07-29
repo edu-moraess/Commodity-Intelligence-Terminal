@@ -1,8 +1,14 @@
 """
-Commodity Intelligence Terminal — Entry Point
-=================================================
+Commodity Intelligence Terminal — Entry Point (Home)
+=====================================================
 Página inicial com KPIs, gráfico de retorno acumulado.
 A navegação é feita automaticamente pelo Streamlit via pasta pages/.
+
+CHANGELOG v4.4.0:
+- Renomeado de CommodityIntelligenceTerminal—EntryP.py para Home.py
+  evitando nome truncado e duplicado na sidebar.
+- load_price_history_bulk agora usa batch download (muito mais rápido).
+- Cards com tratamento de NaN aprimorado.
 """
 
 import streamlit as st
@@ -37,21 +43,18 @@ st.markdown(f"""
     .stTabs [data-baseweb="tab"] {{ color: {THEME['text_muted']}; }}
     .stTabs [aria-selected="true"] {{ color: {THEME['accent']} !important; }}
     div[data-testid="stDataFrame"] {{ border: 1px solid {THEME['border']}; border-radius: 8px; }}
-    /* Ajuste para cards não truncarem números */
     div[data-testid="stMetric"] > div:first-child {{ font-size: 0.9rem !important; }}
     div[data-testid="stMetric"] > div:last-child {{ font-size: 1.5rem !important; font-weight: 600; }}
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# SIDEBAR – Personalização (sem lista de módulos)
+# SIDEBAR
 # --------------------------------------------------------------------------
 with st.sidebar:
     st.markdown(f"## {APP_ICON} {APP_NAME}")
     st.caption("Institutional Quant Research Platform")
     st.divider()
-    # NÃO CRIE UMA LISTA DE MÓDULOS AQUI! O Streamlit já a cria automaticamente.
-    # Basta adicionar os controles extras:
     st.caption("Fontes: Yahoo Finance · FRED · fallback sintético automático")
     if st.button("🔄 Atualizar dados (limpar cache)"):
         st.cache_data.clear()
@@ -64,14 +67,13 @@ with st.sidebar:
 st.title(f"{APP_ICON} {APP_NAME}")
 st.caption("Monitoramento institucional do mercado global de commodities — Energia · Metais · Agricultura")
 
-# Ativos para os cards rápidos (Brent, WTI, Ouro, Cobre, Soja, Trigo)
 quick_assets = [
-    ENERGY_ASSETS[0],  # Brent
-    ENERGY_ASSETS[1],  # WTI
-    METALS_ASSETS[0],  # Ouro
-    METALS_ASSETS[2],  # Cobre
-    AGRI_ASSETS[0],    # Soja
-    AGRI_ASSETS[2]     # Trigo
+    ENERGY_ASSETS[0],   # Brent
+    ENERGY_ASSETS[1],   # WTI
+    METALS_ASSETS[0],   # Ouro
+    METALS_ASSETS[2],   # Cobre
+    AGRI_ASSETS[0],     # Soja
+    AGRI_ASSETS[2],     # Trigo
 ]
 
 with st.spinner("Carregando cotações..."):
@@ -80,29 +82,24 @@ with st.spinner("Carregando cotações..."):
 # Exibe cards com tratamento de NaN e formatação melhorada
 cols = st.columns(len(quick_assets))
 for col, asset in zip(cols, quick_assets):
-    pdat = price_data[asset.ticker]
+    pdat = price_data.get(asset.ticker)
+    if pdat is None or pdat.df.empty:
+        with col:
+            st.metric(label=asset.name, value="N/D", delta=None)
+        continue
+
     close = pdat.df["Close"]
-    
     if not close.empty and pd.notna(close.iloc[-1]):
         last_price = close.iloc[-1]
         chg = metrics.pct_change_over(close, 1)
-        # Formata com 2 decimais para valores pequenos, ou 2 decimais para grandes
-        if abs(last_price) < 100:
-            display_price = f"{last_price:.2f}"
-        else:
-            display_price = f"{last_price:.2f}"
-        display_delta = f"{chg:+.2%}" if pd.notna(chg) else None
+        display_price = f"{last_price:.2f}"
+        display_delta = f"{chg:+.2%}" if chg is not None else None
     else:
         display_price = "N/D"
         display_delta = None
-    
+
     with col:
-        st.metric(
-            label=f"{asset.name}",
-            value=display_price,
-            delta=display_delta,
-        )
-        # Exibe badge de simulação, se for o caso
+        st.metric(label=asset.name, value=display_price, delta=display_delta)
         if pdat.is_synthetic:
             st.caption("🔸 simulado")
         else:
@@ -117,27 +114,29 @@ col_left, col_right = st.columns([2, 1])
 
 with col_left:
     st.subheader("Visão Geral — Retorno Acumulado")
-    
     period_days = st.selectbox("Período", [30, 60, 90, 180, 365], index=2, key="period_selector")
-    
+
     cum_returns = {}
     for a in quick_assets:
-        ser = price_data[a.ticker].df["Close"]
+        pdat = price_data.get(a.ticker)
+        if pdat is None or pdat.df.empty:
+            continue
+        ser = pdat.df["Close"]
         if not ser.empty and len(ser) > 1:
             cum = metrics.cumulative_return_series(ser).tail(period_days)
             cum_returns[a.name] = cum
-        else:
-            cum_returns[a.name] = pd.Series(dtype=float)
-    
-    # Aviso se algum ativo estiver em fallback
-    any_synth = any(pdat.is_synthetic for pdat in price_data.values())
+
+    any_synth = any(pdat.is_synthetic for pdat in price_data.values() if pdat is not None)
     if any_synth:
         st.caption("⚠️ Alguns ativos podem estar exibindo dados simulados (🔸)")
-    
-    st.plotly_chart(
-        charts.line_chart(cum_returns, title=f"Retorno Acumulado ({period_days} dias)", y_title="Retorno"),
-        use_container_width=True,
-    )
+
+    if cum_returns:
+        st.plotly_chart(
+            charts.line_chart(cum_returns, title=f"Retorno Acumulado ({period_days} dias)", y_title="Retorno"),
+            use_container_width=True,
+        )
+    else:
+        st.warning("⚠️ Nenhum dado de retorno disponível para o período selecionado.")
 
 # --------------------------------------------------------------------------
 # SOBRE A PLATAFORMA
