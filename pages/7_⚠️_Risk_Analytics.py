@@ -9,92 +9,32 @@ from charts import plotly_charts as charts
 
 st.set_page_config(page_title=f"Risk Analytics — {APP_NAME}", page_icon="⚠️", layout="wide")
 
+# --------------------------------------------------------------------------
+# CABEÇALHO (Metodologia Geral da Página)
+# --------------------------------------------------------------------------
 st.title("⚠️ Risk Analytics")
 st.caption(
     "Módulo de análise de risco com VaR, CVaR, métricas ajustadas, stress test e distribuição de retornos. "
-    "Todas as métricas são acompanhadas de suas fórmulas e interpretações."
+    "Abaixo de cada indicador, você encontrará a **fórmula matemática** e a **interpretação prática**."
 )
 
-# --------------------------------------------------------------------------
-# SIDEBAR COM METODOLOGIA GERAL
-# --------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown("## 📘 Metodologias")
-    with st.expander("📖 VaR Histórico"):
-        st.markdown(r"""
-        **Definição:** O VaR (Value at Risk) histórico é o percentil da distribuição empírica dos retornos passados.
-        
-        **Fórmula:**
-        $$
-        \text{VaR}_{\text{hist}} = -\text{Percentil}(R, 1 - \alpha)
-        $$
-        onde $\alpha$ é o nível de confiança (ex: 0.95) e $R$ são os retornos diários.
-        
-        **Interpretação:** Com $\alpha$ de confiança, a perda diária não deve superar o VaR.
-        """)
+# Expander introdutório sobre a página como um todo
+with st.expander("📘 Sobre esta página (Metodologia Geral)", expanded=False):
+    st.markdown(r"""
+    **Objetivo:** Quantificar o risco de mercado de um ativo específico, utilizando abordagens complementares.
     
-    with st.expander("📖 VaR Paramétrico"):
-        st.markdown(r"""
-        **Definição:** Assume que os retornos seguem uma distribuição normal.
-        
-        **Fórmula:**
-        $$
-        \text{VaR}_{\text{param}} = -\left( \mu + \sigma \cdot z_{\alpha} \right)
-        $$
-        onde $\mu$ é a média dos retornos, $\sigma$ o desvio padrão, e $z_{\alpha}$ o quantil da normal padrão.
-        
-        **Limitação:** Subestima riscos de cauda (eventos extremos).
-        """)
+    **1. Value at Risk (VaR):** Mede a perda máxima esperada em um horizonte de tempo, sob um determinado nível de confiança.
+    - *Histórico:* usa a distribuição empírica dos retornos passados.
+    - *Paramétrico:* assume normalidade (distribuição Gaussiana).
     
-    with st.expander("📖 CVaR (Expected Shortfall)"):
-        st.markdown(r"""
-        **Definição:** Média das perdas que excedem o VaR.
-        
-        **Fórmula (contínua):**
-        $$
-        \text{CVaR} = -\mathbb{E}[R \mid R < -\text{VaR}]
-        $$
-        
-        **Interpretação:** Em cenários de estresse, a perda média esperada é o CVaR.
-        """)
+    **2. Expected Shortfall (CVaR):** Complementa o VaR medindo a perda *média* nos cenários mais extremos (cauda da distribuição).
     
-    with st.expander("📖 Sharpe Ratio"):
-        st.markdown(r"""
-        **Definição:** Mede o retorno ajustado ao risco, considerando a volatilidade total.
-        
-        **Fórmula:**
-        $$
-        \text{Sharpe} = \frac{\bar{R} - R_f}{\sigma(R)}
-        $$
-        onde $\bar{R}$ é o retorno médio, $R_f$ a taxa livre de risco, e $\sigma$ o desvio padrão.
-        
-        **Referência:** Sharpe (1966) - "Mutual Fund Performance".
-        """)
+    **3. Métricas Ajustadas (Sharpe, Sortino, Drawdown):** Avaliam a eficiência do retorno em relação ao risco corrido.
     
-    with st.expander("📖 Sortino Ratio"):
-        st.markdown(r"""
-        **Definição:** Similar ao Sharpe, mas penaliza apenas a volatilidade negativa (downside risk).
-        
-        **Fórmula:**
-        $$
-        \text{Sortino} = \frac{\bar{R} - R_f}{\sigma_{\text{down}}}
-        $$
-        onde $\sigma_{\text{down}}$ é o desvio padrão dos retornos negativos.
-        
-        **Vantagem:** Mais adequado para investidores avessos a perdas.
-        """)
+    **4. Stress Test:** Simula o impacto de choques instantâneos no preço atual.
     
-    with st.expander("📖 Max Drawdown"):
-        st.markdown(r"""
-        **Definição:** Maior queda acumulada do preço de um pico a um vale, antes de um novo pico.
-        
-        **Fórmula:**
-        $$
-        \text{MDD} = \max_{t} \left( \frac{\max_{s \leq t} P_s - P_t}{\max_{s \leq t} P_s} \right)
-        $$
-        
-        **Interpretação:** Representa a pior perda histórica em termos de drawdown.
-        """)
+    **5. Distribuição dos Retornos:** Visualiza a frequência dos retornos diários para identificar assimetrias e caudas pesadas.
+    """)
 
 st.divider()
 
@@ -120,11 +60,11 @@ if pdat.is_synthetic:
 close = pdat.df["Close"]
 
 # --------------------------------------------------------------------------
-# V A R  E  C V A R
+# SEÇÃO 1: VAR E CVAR (com metodologia integrada)
 # --------------------------------------------------------------------------
-r = risk.risk_summary(close, confidence=confidence, window=window)
+st.header("📉 Value at Risk (VaR) e Expected Shortfall (CVaR)")
 
-st.subheader("📉 Value at Risk (VaR) e Expected Shortfall (CVaR)")
+r = risk.risk_summary(close, confidence=confidence, window=window)
 
 c1, c2, c3 = st.columns(3)
 c1.metric(
@@ -143,37 +83,41 @@ c3.metric(
     delta="Média das perdas extremas",
 )
 
-# Interpretação automática do VaR
+# Interpretação principal (fora do expander)
 st.info(
-    f"**Interpretação:** Com {confidence:.0%} de confiança, a perda diária máxima esperada para "
+    f"**Interpretação prática:** Com {confidence:.0%} de confiança, a perda diária máxima esperada para "
     f"**{asset.name}** é de **{r['var_historico']:.2%}** do valor posicionado (janela de {window} pregões). "
     f"Em cenários de estresse que superam esse limiar, a perda média é de **{r['cvar']:.2%}** (CVaR)."
 )
 
-# Explicação metodológica com fórmula
-with st.expander("📐 Metodologia de Cálculo do VaR e CVaR"):
+# Metodologia detalhada (expander logo abaixo)
+with st.expander("📐 Como calculamos o VaR e o CVaR? (Fórmulas)"):
     st.markdown(
         f"""
-        **VaR Histórico:** Ordenam-se os retornos diários dos últimos {window} pregões. O VaR é o negativo do
-        percentil correspondente a `1 - {confidence}`.
+        **VaR Histórico (Não-Paramétrico):**
+        Ordenam-se os retornos diários dos últimos {window} pregões. O VaR é o negativo do percentil empírico `(1 - {confidence})`.
         
-        **VaR Paramétrico:** Assume-se normalidade dos retornos. Calcula-se a média ($\\mu$) e o desvio padrão
-        ($\\sigma$) amostrais. O VaR é:
-        $$
-        \\text{{VaR}}_{{\\text{{param}}}} = -\\left( \\mu + \\sigma \\cdot z_{{{1-{confidence}}}} \\right)
-        $$
-        onde $z$ é o quantil da normal padrão.
+        **VaR Paramétrico (Normal):**
+        Assume-se que os retornos seguem uma distribuição normal. Calcula-se a média ($\\mu$) e o desvio padrão ($\\sigma$) amostrais.
+        """
+    )
+    # Fórmula em LaTeX isolada para evitar erro de f-string
+    st.latex(rf"\text{{VaR}}_{{\text{{param}}}} = -\left( \mu + \sigma \cdot z_{{1-{confidence}}} \right)")
+    st.markdown(
+        f"""
+        onde $z$ é o quantil da distribuição normal padrão para o nível de confiança {confidence:.0%}.
         
-        **CVaR (Expected Shortfall):** Média dos retornos que são inferiores a `-VaR_historico`.
+        **CVaR (Expected Shortfall):**
+        É a média aritmética de todos os retornos diários que são **menores** que `-VaR_historico`.
         """
     )
 
 st.divider()
 
 # --------------------------------------------------------------------------
-# MÉTRICAS DE RISCO AJUSTADO
+# SEÇÃO 2: MÉTRICAS DE RISCO AJUSTADO (com metodologia integrada)
 # --------------------------------------------------------------------------
-st.subheader("📊 Risco Ajustado ao Retorno")
+st.header("📊 Risco Ajustado ao Retorno")
 
 # Métricas principais
 vol = metrics.annualized_volatility(close, window=window)
@@ -187,8 +131,8 @@ m2.metric("Sharpe Ratio (252d)", f"{sharpe:.2f}")
 m3.metric("Sortino Ratio (252d)", f"{sortino:.2f}")
 m4.metric("Máximo Drawdown (252d)", f"{max_dd:.2%}")
 
-# Interpretação inteligente
-st.markdown("**Interpretação:**")
+# Interpretação inteligente (feedback visual)
+st.markdown("**Interpretação dos Resultados:**")
 col_interpret = st.columns(2)
 with col_interpret[0]:
     if sharpe > 1:
@@ -199,50 +143,51 @@ with col_interpret[0]:
         st.error(f"❌ Sharpe negativo: retorno **inferior** à taxa livre de risco.")
     
     if sortino > sharpe:
-        st.info(f"ℹ️ Sortino ({sortino:.2f}) > Sharpe ({sharpe:.2f}): indica que a volatilidade negativa é menor que a total.")
+        st.info(f"ℹ️ Sortino ({sortino:.2f}) > Sharpe ({sharpe:.2f}): o risco de baixa (downside) é menor que o risco total.")
     else:
         st.info(f"ℹ️ Sortino ({sortino:.2f}) ≤ Sharpe ({sharpe:.2f}): o risco de baixa é relevante.")
 
 with col_interpret[1]:
     if max_dd < -0.20:
-        st.warning(f"⚠️ Drawdown máximo de {max_dd:.2%}: perda histórica significativa.")
+        st.warning(f"⚠️ Drawdown máximo de {max_dd:.2%}: perda histórica significativa (pico ao vale).")
     else:
-        st.success(f"✅ Drawdown máximo de {max_dd:.2%}: dentro de patamares aceitáveis.")
+        st.success(f"✅ Drawdown máximo de {max_dd:.2%}: dentro de patamares aceitáveis para a maioria dos ativos.")
 
-# Fórmulas
-with st.expander("📐 Metodologia das Métricas de Risco Ajustado"):
+# Metodologia detalhada
+with st.expander("📐 Como calculamos as métricas ajustadas? (Fórmulas)"):
     st.markdown(
-        f"""
+        r"""
         **Volatilidade Anualizada:**
         $$
-        \\sigma_{{\\text{{anual}}}} = \\sigma_{{\\text{{diário}}}} \\times \\sqrt{{252}}
+        \sigma_{\text{anual}} = \sigma_{\text{diário}} \times \sqrt{252}
         $$
         
-        **Sharpe Ratio:**
+        **Sharpe Ratio (Sharpe, 1966):**
         $$
-        \\text{{Sharpe}} = \\frac{{\\bar{{R}} - R_f}}{{\\sigma}}
+        \text{Sharpe} = \frac{\bar{R} - R_f}{\sigma}
         $$
-        onde $\\bar{{R}}$ é a média dos retornos diários (anualizada), $R_f$ é a taxa livre de risco (4.5% a.a.), e $\\sigma$ é o desvio padrão anualizado.
+        onde $\bar{R}$ é o retorno médio diário (anualizado), $R_f$ é a taxa livre de risco (4.5% a.a.), e $\sigma$ é o desvio padrão anualizado.
         
-        **Sortino Ratio:**
+        **Sortino Ratio (Sortino & Price, 1994):**
         $$
-        \\text{{Sortino}} = \\frac{{\\bar{{R}} - R_f}}{{\\sigma_{{\\text{{down}}}}}}
+        \text{Sortino} = \frac{\bar{R} - R_f}{\sigma_{\text{down}}}
         $$
-        onde $\\sigma_{{\\text{{down}}}}$ é o desvio padrão dos retornos negativos.
+        onde $\sigma_{\text{down}}$ é o desvio padrão **apenas** dos retornos negativos (downside deviation).
         
-        **Máximo Drawdown:**
+        **Máximo Drawdown (MDD):**
         $$
-        \\text{{MDD}} = \\max_{{t}} \\left( \\frac{{\\max_{{s \\leq t}} P_s - P_t}}{{\\max_{{s \\leq t}} P_s}} \\right)
+        \text{MDD} = \max_{t} \left( \frac{\max_{s \leq t} P_s - P_t}{\max_{s \leq t} P_s} \right)
         $$
+        mede a maior queda acumulada do preço de um pico a um vale.
         """
     )
 
 st.divider()
 
 # --------------------------------------------------------------------------
-# STRESS TEST
+# SEÇÃO 3: STRESS TEST (com metodologia integrada)
 # --------------------------------------------------------------------------
-st.subheader("🔨 Stress Test — Choques Instantâneos")
+st.header("🔨 Stress Test — Choques Instantâneos")
 st.caption("Simula o impacto de choques percentuais no preço atual sobre o retorno e a perda monetária.")
 
 custom_shocks = st.text_input(
@@ -270,23 +215,23 @@ if shocks:
         use_container_width=True,
     )
     
-    with st.expander("📐 Metodologia do Stress Test"):
+    with st.expander("📐 Como funciona o Stress Test?"):
         st.markdown(r"""
-        **Cenários:** Para cada choque percentual $s$ (ex: -0.10), calcula-se:
+        Para cada cenário de choque $s$ (ex: -0.10 para queda de 10%), calculamos:
         
         - **Novo preço:** $P_{\text{novo}} = P_{\text{atual}} \times (1 + s)$
         - **Variação absoluta:** $\Delta P = P_{\text{novo}} - P_{\text{atual}}$
         - **Variação relativa:** $s$ (já definido)
         
-        O gráfico mostra o impacto monetário (em unidades da moeda do ativo) para cada cenário.
+        O gráfico mostra o impacto monetário (em unidades da moeda do ativo) para cada cenário, permitindo visualizar rapidamente a sensibilidade do ativo a choques adversos.
         """)
 
 st.divider()
 
 # --------------------------------------------------------------------------
-# DISTRIBUIÇÃO DE RETORNOS
+# SEÇÃO 4: DISTRIBUIÇÃO DE RETORNOS (com metodologia integrada)
 # --------------------------------------------------------------------------
-st.subheader("📊 Distribuição de Retornos Diários")
+st.header("📊 Distribuição de Retornos Diários")
 st.caption(f"Histograma dos retornos diários (últimos {window} pregões).")
 
 rets = metrics.daily_returns(close).tail(window)
@@ -300,30 +245,31 @@ st.plotly_chart(
     use_container_width=True,
 )
 
-with st.expander("📐 Metodologia do Histograma"):
+with st.expander("📐 Como interpretar o histograma?"):
     st.markdown(r"""
-    **Construção:** Os retornos diários são calculados como:
+    **Construção do Histograma:**
+    Os retornos diários são calculados como:
     $$
     R_t = \frac{P_t}{P_{t-1}} - 1
     $$
-    O histograma agrupa os retornos em intervalos (bins) e exibe a frequência de ocorrência.
+    O histograma agrupa esses retornos em intervalos (bins) e exibe a frequência de ocorrência.
     
-    **Interpretação:**
-    - Se a distribuição for simétrica e com caudas leves, os retornos aproximam-se de uma normal.
-    - Caudas pesadas indicam maior probabilidade de eventos extremos (risco de cauda).
-    - Assimetria negativa sugere que grandes perdas são mais frequentes do que grandes ganhos.
+    **O que observar:**
+    - **Simetria:** Se a distribuição for simétrica, os retornos se aproximam de uma normal.
+    - **Caudas pesadas:** Se houver barras altas nas extremidades, há maior probabilidade de eventos extremos (risco de cauda).
+    - **Assimetria (Skewness):** Se a cauda esquerda for mais longa, grandes perdas são mais frequentes do que grandes ganhos (risco assimétrico).
     """)
 
 st.divider()
 
 # --------------------------------------------------------------------------
-# NOTAS FINAIS E REFERÊNCIAS
+# SEÇÃO 5: REFERÊNCIAS BIBLIOGRÁFICAS (Rodapé)
 # --------------------------------------------------------------------------
-with st.expander("📚 Referências Bibliográficas"):
+with st.expander("📚 Referências Acadêmicas e Regulatórias"):
     st.markdown(r"""
     - **Jorion, P. (2007).** *Value at Risk: The New Benchmark for Managing Financial Risk.* McGraw-Hill.
     - **Sharpe, W. F. (1966).** Mutual Fund Performance. *Journal of Business*, 39(1), 119-138.
     - **Sortino, F. A., & Price, L. N. (1994).** Performance Measurement in a Downside Risk Framework. *Journal of Investing*, 3(3), 59-64.
     - **Campbell, J. Y., Lo, A. W., & MacKinlay, A. C. (1997).** *The Econometrics of Financial Markets.* Princeton University Press.
-    - **Basel Committee on Banking Supervision (2019).** *Minimum Capital Requirements for Market Risk.* (FRTB - Fundamental Review of the Trading Book).
+    - **Basel Committee on Banking Supervision (2019).** *Minimum Capital Requirements for Market Risk* (FRTB - Fundamental Review of the Trading Book).
     """)
