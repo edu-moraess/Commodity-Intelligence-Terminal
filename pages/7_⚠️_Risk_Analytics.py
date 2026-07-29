@@ -18,7 +18,6 @@ st.caption(
     "Abaixo de cada indicador, você encontrará a **fórmula matemática** e a **interpretação prática**."
 )
 
-# Expander introdutório sobre a página como um todo
 with st.expander("📘 Sobre esta página (Metodologia Geral)", expanded=False):
     st.markdown(r"""
     **Objetivo:** Quantificar o risco de mercado de um ativo específico, utilizando abordagens complementares.
@@ -60,7 +59,7 @@ if pdat.is_synthetic:
 close = pdat.df["Close"]
 
 # --------------------------------------------------------------------------
-# SEÇÃO 1: VAR E CVAR (com metodologia integrada)
+# SEÇÃO 1: VAR E CVAR
 # --------------------------------------------------------------------------
 st.header("📉 Value at Risk (VaR) e Expected Shortfall (CVaR)")
 
@@ -83,14 +82,12 @@ c3.metric(
     delta="Média das perdas extremas",
 )
 
-# Interpretação principal (fora do expander)
 st.info(
     f"**Interpretação prática:** Com {confidence:.0%} de confiança, a perda diária máxima esperada para "
     f"**{asset.name}** é de **{r['var_historico']:.2%}** do valor posicionado (janela de {window} pregões). "
     f"Em cenários de estresse que superam esse limiar, a perda média é de **{r['cvar']:.2%}** (CVaR)."
 )
 
-# Metodologia detalhada (expander logo abaixo)
 with st.expander("📐 Como calculamos o VaR e o CVaR? (Fórmulas)"):
     st.markdown(
         f"""
@@ -101,7 +98,6 @@ with st.expander("📐 Como calculamos o VaR e o CVaR? (Fórmulas)"):
         Assume-se que os retornos seguem uma distribuição normal. Calcula-se a média ($\\mu$) e o desvio padrão ($\\sigma$) amostrais.
         """
     )
-    # Fórmula em LaTeX isolada para evitar erro de f-string
     st.latex(rf"\text{{VaR}}_{{\text{{param}}}} = -\left( \mu + \sigma \cdot z_{{1-{confidence}}} \right)")
     st.markdown(
         f"""
@@ -115,11 +111,10 @@ with st.expander("📐 Como calculamos o VaR e o CVaR? (Fórmulas)"):
 st.divider()
 
 # --------------------------------------------------------------------------
-# SEÇÃO 2: MÉTRICAS DE RISCO AJUSTADO (com metodologia integrada)
+# SEÇÃO 2: MÉTRICAS DE RISCO AJUSTADO
 # --------------------------------------------------------------------------
 st.header("📊 Risco Ajustado ao Retorno")
 
-# Métricas principais
 vol = metrics.annualized_volatility(close, window=window)
 sharpe = metrics.sharpe_ratio(close, window=252)
 sortino = metrics.sortino_ratio(close, window=252)
@@ -131,7 +126,6 @@ m2.metric("Sharpe Ratio (252d)", f"{sharpe:.2f}")
 m3.metric("Sortino Ratio (252d)", f"{sortino:.2f}")
 m4.metric("Máximo Drawdown (252d)", f"{max_dd:.2%}")
 
-# Interpretação inteligente (feedback visual)
 st.markdown("**Interpretação dos Resultados:**")
 col_interpret = st.columns(2)
 with col_interpret[0]:
@@ -153,7 +147,6 @@ with col_interpret[1]:
     else:
         st.success(f"✅ Drawdown máximo de {max_dd:.2%}: dentro de patamares aceitáveis para a maioria dos ativos.")
 
-# Metodologia detalhada
 with st.expander("📐 Como calculamos as métricas ajustadas? (Fórmulas)"):
     st.markdown(
         r"""
@@ -185,7 +178,7 @@ with st.expander("📐 Como calculamos as métricas ajustadas? (Fórmulas)"):
 st.divider()
 
 # --------------------------------------------------------------------------
-# SEÇÃO 3: STRESS TEST (com metodologia integrada)
+# SEÇÃO 3: STRESS TEST
 # --------------------------------------------------------------------------
 st.header("🔨 Stress Test — Choques Instantâneos")
 st.caption("Simula o impacto de choques percentuais no preço atual sobre o retorno e a perda monetária.")
@@ -229,18 +222,19 @@ if shocks:
 st.divider()
 
 # --------------------------------------------------------------------------
-# SEÇÃO 4: DISTRIBUIÇÃO DE RETORNOS (com metodologia integrada)
+# SEÇÃO 4: DISTRIBUIÇÃO DE RETORNOS (CORRIGIDA)
 # --------------------------------------------------------------------------
 st.header("📊 Distribuição de Retornos Diários")
 st.caption(f"Histograma dos retornos diários (últimos {window} pregões).")
 
 rets = metrics.daily_returns(close).tail(window)
+
+# CORREÇÃO: removido o argumento 'bins=50' que causava o erro
 st.plotly_chart(
     charts.histogram_chart(
         rets.values,
         title=f"Distribuição de Retornos Diários - {asset.name}",
-        x_title="Retorno diário",
-        bins=50,
+        x_title="Retorno diário"
     ),
     use_container_width=True,
 )
@@ -263,7 +257,7 @@ with st.expander("📐 Como interpretar o histograma?"):
 st.divider()
 
 # --------------------------------------------------------------------------
-# SEÇÃO 5: REFERÊNCIAS BIBLIOGRÁFICAS (Rodapé)
+# SEÇÃO 5: REFERÊNCIAS BIBLIOGRÁFICAS
 # --------------------------------------------------------------------------
 with st.expander("📚 Referências Acadêmicas e Regulatórias"):
     st.markdown(r"""
