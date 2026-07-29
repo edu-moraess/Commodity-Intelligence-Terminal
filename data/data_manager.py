@@ -24,16 +24,6 @@ from utils.logger import get_logger
 
 logger = get_logger("data_manager")
 
-# -----------------------------------------------------------------------------
-# Tenta importar pandas_datareader (opcional, para fallback futuro)
-# -----------------------------------------------------------------------------
-try:
-    from pandas_datareader import data as pdr
-    _HAS_PDR = True
-except (ImportError, ModuleNotFoundError):
-    _HAS_PDR = False
-    logger.info("pandas_datareader não disponível. Usando API REST do FRED.")
-
 
 @dataclass
 class PriceData:
@@ -57,6 +47,7 @@ def _fetch_yahoo_with_retry(ticker: str, period_days: int, max_retries: int = 3)
 
     for attempt in range(max_retries):
         try:
+            # Configuração para evitar bloqueios
             data = yf.download(
                 tickers=ticker,
                 period=period,
@@ -67,11 +58,13 @@ def _fetch_yahoo_with_retry(ticker: str, period_days: int, max_retries: int = 3)
                 progress=False,
             )
             
+            # Valida se veio dados minimamente aceitáveis
             if data.empty:
                 raise ValueError("DataFrame vazio")
             if data["Close"].isna().all():
                 raise ValueError("Todos os preços de fechamento são NaN")
             
+            # Se chegou aqui, sucesso!
             logger.info(f"Dados reais obtidos para {ticker} na tentativa {attempt+1}")
             return data
 
@@ -79,18 +72,21 @@ def _fetch_yahoo_with_retry(ticker: str, period_days: int, max_retries: int = 3)
             last_error = e
             logger.warning(f"Tentativa {attempt+1}/{max_retries} falhou para {ticker}: {e}")
             if attempt < max_retries - 1:
-                time.sleep(2 ** (attempt + 1))
+                # Espera exponencial: 2s, 4s, 8s
+                sleep_time = 2 ** (attempt + 1)
+                time.sleep(sleep_time)
             continue
 
+    # Se chegou aqui, todas as tentativas falharam
     raise RuntimeError(f"Falha ao obter dados para {ticker} após {max_retries} tentativas. Último erro: {last_error}")
 
 
 def _fetch_fred_via_api(series_code: str, max_retries: int = 3) -> pd.Series:
     """
-    Busca série do FRED usando a API REST diretamente.
-    Requer FRED_API_KEY configurada nas secrets do Streamlit ou variável de ambiente.
+    Busca série do FRED usando a API REST diretamente (sem pandas_datareader).
+    Requer FRED_API_KEY configurada nas secrets.
     """
-    # Tenta obter a chave
+    # Tenta obter a chave das secrets do Streamlit ou variável de ambiente
     api_key = None
     try:
         api_key = st.secrets.get("FRED_API_KEY")
@@ -122,12 +118,14 @@ def _fetch_fred_via_api(series_code: str, max_retries: int = 3) -> pd.Series:
             if not observations:
                 raise ValueError(f"Nenhuma observação para {series_code}")
             
+            # Converte para DataFrame
             df = pd.DataFrame(observations)
             df["date"] = pd.to_datetime(df["date"])
             df["value"] = pd.to_numeric(df["value"], errors="coerce")
             df = df.dropna(subset=["value"])
             df = df.set_index("date")["value"]
             
+            # Ordena e preenche forward fill (dados podem ser mensais)
             df = df.sort_index()
             df = df.asfreq('D').ffill()
             
@@ -148,17 +146,18 @@ def _fetch_fred_via_api(series_code: str, max_retries: int = 3) -> pd.Series:
 # FUNÇÕES PÚBLICAS COM CACHE
 # -----------------------------------------------------------------------------
 
-@st.cache_data(ttl=300)  # 5 minutos
+@st.cache_data(ttl=300)  # 5 minutos de cache
 def load_price_history_cached(ticker: str, days: int) -> tuple[pd.DataFrame, bool, str]:
     """
     Versão cacheada do carregamento de preços.
-    Retorna (df, is_synthetic, source).
+    Retorna (df, is_synthetic, source) para permitir cache.
     """
     try:
         df = _fetch_yahoo_with_retry(ticker, days)
         return df, False, "yahoo_finance"
     except Exception as e:
         logger.warning(f"Fallback sintético ativado para {ticker}: {e}")
+        # Gera dados sintéticos realistas
         df = _generate_synthetic_price_series(ticker, days)
         return df, True, "synthetic_fallback"
 
@@ -166,6 +165,7 @@ def load_price_history_cached(ticker: str, days: int) -> tuple[pd.DataFrame, boo
 def load_price_history(asset: Asset, days: int = DEFAULT_LOOKBACK_DAYS) -> PriceData:
     """Retorna histórico de preços para um ativo, com fallback automático."""
     if asset.source == "synthetic":
+        # Força sintético se o ativo estiver configurado assim
         df = _generate_synthetic_price_series(asset.ticker, days)
         return PriceData(df=df, is_synthetic=True, source="synthetic_forced", asset=asset)
 
@@ -174,14 +174,14 @@ def load_price_history(asset: Asset, days: int = DEFAULT_LOOKBACK_DAYS) -> Price
 
 
 def load_price_history_bulk(assets: list[Asset], days: int = DEFAULT_LOOKBACK_DAYS) -> dict[str, PriceData]:
-    """Carrega vários ativos de uma vez."""
+    """Carrega vários ativos de uma vez, mantendo o mapeamento ticker -> PriceData."""
     result: dict[str, PriceData] = {}
     for asset in assets:
         result[asset.ticker] = load_price_history(asset, days=days)
     return result
 
 
-@st.cache_data(ttl=600)  # 10 minutos para dados macro
+@st.cache_data(ttl=600)  # 10 minutos para dados macro (menos voláteis)
 def load_macro_series_cached(series_code: str, days: int) -> tuple[pd.Series, bool]:
     """
     Versão cacheada do carregamento de séries macro.
@@ -214,16 +214,16 @@ def build_price_panel(price_data: dict[str, PriceData], field: str = "Close") ->
 
 
 # -----------------------------------------------------------------------------
-# GERADORES SINTÉTICOS (FALLBACK) – CORRIGIDOS
+# GERADORES SINTÉTICOS (FALLBACK)
 # -----------------------------------------------------------------------------
 
 def _generate_synthetic_price_series(ticker: str, days: int) -> pd.DataFrame:
     """Gera dados sintéticos realistas para fallback."""
     end_date = pd.Timestamp.now()
-    start_date = end_date - pd.Timedelta(days=days)
-    # CORREÇÃO: periods=days para ter exatamente 'days' elementos
-    dates = pd.date_range(start=start_date, periods=days, freq='D')
+    # FIX: usa periods=days para garantir exatamente 'days' elementos no índice
+    dates = pd.date_range(end=end_date, periods=days, freq='D')
     
+    # Preços iniciais realistas por ticker
     start_prices = {
         "BZ=F": 85.0, "CL=F": 80.0, "NG=F": 3.0, "RB=F": 3.2, "HO=F": 4.0,
         "BTU": 25.0, "URA": 30.0, "GC=F": 2500.0, "HG=F": 5.0, "SI=F": 30.0,
@@ -231,8 +231,9 @@ def _generate_synthetic_price_series(ticker: str, days: int) -> pd.DataFrame:
     }
     start = start_prices.get(ticker, 100.0)
     
-    drift = 0.08 / 252
-    vol = 0.25 / np.sqrt(252)
+    # Passeio aleatório com drift e volatilidade
+    drift = 0.08 / 252  # 8% anual
+    vol = 0.25 / np.sqrt(252)  # 25% anual
     returns = np.random.normal(drift, vol, days)
     prices = start * np.exp(np.cumsum(returns))
     
@@ -249,10 +250,10 @@ def _generate_synthetic_price_series(ticker: str, days: int) -> pd.DataFrame:
 def _generate_synthetic_macro_series(series_code: str, days: int) -> pd.Series:
     """Gera série macro sintética para fallback."""
     end_date = pd.Timestamp.now()
-    start_date = end_date - pd.Timedelta(days=days)
-    # CORREÇÃO: periods=days para ter exatamente 'days' elementos
-    dates = pd.date_range(start=start_date, periods=days, freq='D')
+    # FIX: mesmo ajuste aqui — periods=days garante alinhamento 1:1 com os arrays
+    dates = pd.date_range(end=end_date, periods=days, freq='D')
     
+    # Valor inicial por tipo de série (aproximado)
     base_values = {
         "DTWEXBGS": 120.0,   # DXY
         "DGS10": 4.5,        # Treasury 10Y
@@ -264,7 +265,8 @@ def _generate_synthetic_macro_series(series_code: str, days: int) -> pd.Series:
     }
     base = base_values.get(series_code, 100.0)
     
-    trend = np.linspace(0, 0.05 * days/252, days)
-    noise = np.random.normal(0, 0.02, days)
+    # Tendência suave com ruído
+    trend = np.linspace(0, 0.05 * days/252, days)  # 5% de crescimento anual
+    noise = np.random.normal(0, 0.02, days)  # ruído pequeno
     values = base * (1 + trend + noise)
     return pd.Series(values, index=dates)
