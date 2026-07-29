@@ -15,7 +15,6 @@ import pandas as pd
 import numpy as np
 import time
 import yfinance as yf
-from pandas_datareader import data as pdr
 import streamlit as st
 
 from config.settings import Asset, DEFAULT_LOOKBACK_DAYS
@@ -23,6 +22,16 @@ from utils.logger import get_logger
 
 logger = get_logger("data_manager")
 
+# -----------------------------------------------------------------------------
+# Tenta importar pandas_datareader apenas se disponível
+# Caso contrário, usa fallback sintético para todas as séries macro
+# -----------------------------------------------------------------------------
+try:
+    from pandas_datareader import data as pdr
+    _HAS_PDR = True
+except (ImportError, ModuleNotFoundError):
+    _HAS_PDR = False
+    logger.warning("pandas_datareader não disponível. Séries FRED usarão fallback sintético.")
 
 @dataclass
 class PriceData:
@@ -82,8 +91,12 @@ def _fetch_yahoo_with_retry(ticker: str, period_days: int, max_retries: int = 3)
 
 def _fetch_fred_with_retry(series_code: str, max_retries: int = 3) -> pd.Series:
     """
-    Tenta buscar série do FRED usando pandas_datareader.
+    Tenta buscar série do FRED usando pandas_datareader (se disponível).
+    Se não estiver disponível, levanta exceção para trigger do fallback.
     """
+    if not _HAS_PDR:
+        raise RuntimeError("pandas_datareader não instalado. Use fallback sintético.")
+    
     last_error = None
     for attempt in range(max_retries):
         try:
