@@ -48,6 +48,14 @@ panel = build_price_panel(price_data)
 panel.columns = [a.name for a in sel_assets if a.ticker in panel.columns]
 
 macro_panel = pd.DataFrame(macro_data).ffill()
+
+# 🛡️ CORREÇÃO: Remove o fuso horário dos índices para evitar o TypeError
+# "Cannot join tz-naive with tz-aware DatetimeIndex"
+if panel.index.tz is not None:
+    panel.index = panel.index.tz_localize(None)
+if macro_panel.index.tz is not None:
+    macro_panel.index = macro_panel.index.tz_localize(None)
+
 combined = panel.join(macro_panel, how="inner").dropna(how="all")
 
 st.subheader("Heatmap de Correlação — Commodities × Macro")
