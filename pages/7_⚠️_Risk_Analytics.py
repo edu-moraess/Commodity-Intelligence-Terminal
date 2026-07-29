@@ -21,76 +21,76 @@ st.caption(
 with st.sidebar:
     st.markdown("## 📘 Metodologias")
     with st.expander("📖 VaR Histórico"):
-        st.markdown("""
+        st.markdown(r"""
         **Definição:** O VaR (Value at Risk) histórico é o percentil da distribuição empírica dos retornos passados.
         
         **Fórmula:**
         $$
-        \\text{VaR}_{\\text{hist}} = -\\text{Percentil}(R, 1 - \\alpha)
+        \text{VaR}_{\text{hist}} = -\text{Percentil}(R, 1 - \alpha)
         $$
-        onde $\\alpha$ é o nível de confiança (ex: 0.95) e $R$ são os retornos diários.
+        onde $\alpha$ é o nível de confiança (ex: 0.95) e $R$ são os retornos diários.
         
-        **Interpretação:** Com $\\alpha$ de confiança, a perda diária não deve superar o VaR.
+        **Interpretação:** Com $\alpha$ de confiança, a perda diária não deve superar o VaR.
         """)
     
     with st.expander("📖 VaR Paramétrico"):
-        st.markdown("""
+        st.markdown(r"""
         **Definição:** Assume que os retornos seguem uma distribuição normal.
         
         **Fórmula:**
         $$
-        \\text{VaR}_{\\text{param}} = -\\left( \\mu + \\sigma \\cdot z_{\\alpha} \\right)
+        \text{VaR}_{\text{param}} = -\left( \mu + \sigma \cdot z_{\alpha} \right)
         $$
-        onde $\\mu$ é a média dos retornos, $\\sigma$ o desvio padrão, e $z_{\\alpha}$ o quantil da normal padrão.
+        onde $\mu$ é a média dos retornos, $\sigma$ o desvio padrão, e $z_{\alpha}$ o quantil da normal padrão.
         
         **Limitação:** Subestima riscos de cauda (eventos extremos).
         """)
     
     with st.expander("📖 CVaR (Expected Shortfall)"):
-        st.markdown("""
+        st.markdown(r"""
         **Definição:** Média das perdas que excedem o VaR.
         
         **Fórmula (contínua):**
         $$
-        \\text{CVaR} = -\\mathbb{E}[R \\mid R < -\\text{VaR}]
+        \text{CVaR} = -\mathbb{E}[R \mid R < -\text{VaR}]
         $$
         
         **Interpretação:** Em cenários de estresse, a perda média esperada é o CVaR.
         """)
     
     with st.expander("📖 Sharpe Ratio"):
-        st.markdown("""
+        st.markdown(r"""
         **Definição:** Mede o retorno ajustado ao risco, considerando a volatilidade total.
         
         **Fórmula:**
         $$
-        \\text{Sharpe} = \\frac{\\bar{R} - R_f}{\\sigma(R)}
+        \text{Sharpe} = \frac{\bar{R} - R_f}{\sigma(R)}
         $$
-        onde $\\bar{R}$ é o retorno médio, $R_f$ a taxa livre de risco, e $\\sigma$ o desvio padrão.
+        onde $\bar{R}$ é o retorno médio, $R_f$ a taxa livre de risco, e $\sigma$ o desvio padrão.
         
         **Referência:** Sharpe (1966) - "Mutual Fund Performance".
         """)
     
     with st.expander("📖 Sortino Ratio"):
-        st.markdown("""
+        st.markdown(r"""
         **Definição:** Similar ao Sharpe, mas penaliza apenas a volatilidade negativa (downside risk).
         
         **Fórmula:**
         $$
-        \\text{Sortino} = \\frac{\\bar{R} - R_f}{\\sigma_{\\text{down}}}
+        \text{Sortino} = \frac{\bar{R} - R_f}{\sigma_{\text{down}}}
         $$
-        onde $\\sigma_{\\text{down}}$ é o desvio padrão dos retornos negativos.
+        onde $\sigma_{\text{down}}$ é o desvio padrão dos retornos negativos.
         
         **Vantagem:** Mais adequado para investidores avessos a perdas.
         """)
     
     with st.expander("📖 Max Drawdown"):
-        st.markdown("""
+        st.markdown(r"""
         **Definição:** Maior queda acumulada do preço de um pico a um vale, antes de um novo pico.
         
         **Fórmula:**
         $$
-        \\text{MDD} = \\max_{t} \\left( \\frac{\\max_{s \\leq t} P_s - P_t}{\\max_{s \\leq t} P_s} \\right)
+        \text{MDD} = \max_{t} \left( \frac{\max_{s \leq t} P_s - P_t}{\max_{s \leq t} P_s} \right)
         $$
         
         **Interpretação:** Representa a pior perda histórica em termos de drawdown.
@@ -152,19 +152,21 @@ st.info(
 
 # Explicação metodológica com fórmula
 with st.expander("📐 Metodologia de Cálculo do VaR e CVaR"):
-    st.markdown(f"""
-    **VaR Histórico:** Ordenam-se os retornos diários dos últimos {window} pregões. O VaR é o negativo do
-    percentil correspondente a `1 - {confidence}`.
-    
-    **VaR Paramétrico:** Assume-se normalidade dos retornos. Calcula-se a média ($\\mu$) e o desvio padrão
-    ($\\sigma$) amostrais. O VaR é:
-    $$
-    \\text{VaR}_{\\text{param}} = -\\left( \\mu + \\sigma \\cdot z_{{{1-{confidence}}}} \\right)
-    $$
-    onde $z$ é o quantil da normal padrão.
-    
-    **CVaR (Expected Shortfall):** Média dos retornos que são inferiores a `-VaR_historico`.
-    """)
+    st.markdown(
+        f"""
+        **VaR Histórico:** Ordenam-se os retornos diários dos últimos {window} pregões. O VaR é o negativo do
+        percentil correspondente a `1 - {confidence}`.
+        
+        **VaR Paramétrico:** Assume-se normalidade dos retornos. Calcula-se a média ($\\mu$) e o desvio padrão
+        ($\\sigma$) amostrais. O VaR é:
+        $$
+        \\text{{VaR}}_{{\\text{{param}}}} = -\\left( \\mu + \\sigma \\cdot z_{{{1-{confidence}}}} \\right)
+        $$
+        onde $z$ é o quantil da normal padrão.
+        
+        **CVaR (Expected Shortfall):** Média dos retornos que são inferiores a `-VaR_historico`.
+        """
+    )
 
 st.divider()
 
@@ -209,29 +211,31 @@ with col_interpret[1]:
 
 # Fórmulas
 with st.expander("📐 Metodologia das Métricas de Risco Ajustado"):
-    st.markdown(f"""
-    **Volatilidade Anualizada:**
-    $$
-    \\sigma_{\\text{anual}} = \\sigma_{\\text{diário}} \\times \\sqrt{252}
-    $$
-    
-    **Sharpe Ratio:**
-    $$
-    \\text{Sharpe} = \\frac{{\\bar{{R}} - R_f}}{{\\sigma}}
-    $$
-    onde $\\bar{{R}}$ é a média dos retornos diários (anualizada), $R_f$ é a taxa livre de risco (4.5% a.a.), e $\\sigma$ é o desvio padrão anualizado.
-    
-    **Sortino Ratio:**
-    $$
-    \\text{Sortino} = \\frac{{\\bar{{R}} - R_f}}{{\\sigma_{\\text{down}}}}
-    $$
-    onde $\\sigma_{\\text{down}}$ é o desvio padrão dos retornos negativos.
-    
-    **Máximo Drawdown:**
-    $$
-    \\text{MDD} = \\max_{t} \\left( \\frac{{\\max_{{s \\leq t}} P_s - P_t}}{{\\max_{{s \\leq t}} P_s}} \\right)
-    $$
-    """)
+    st.markdown(
+        f"""
+        **Volatilidade Anualizada:**
+        $$
+        \\sigma_{{\\text{{anual}}}} = \\sigma_{{\\text{{diário}}}} \\times \\sqrt{{252}}
+        $$
+        
+        **Sharpe Ratio:**
+        $$
+        \\text{{Sharpe}} = \\frac{{\\bar{{R}} - R_f}}{{\\sigma}}
+        $$
+        onde $\\bar{{R}}$ é a média dos retornos diários (anualizada), $R_f$ é a taxa livre de risco (4.5% a.a.), e $\\sigma$ é o desvio padrão anualizado.
+        
+        **Sortino Ratio:**
+        $$
+        \\text{{Sortino}} = \\frac{{\\bar{{R}} - R_f}}{{\\sigma_{{\\text{{down}}}}}}
+        $$
+        onde $\\sigma_{{\\text{{down}}}}$ é o desvio padrão dos retornos negativos.
+        
+        **Máximo Drawdown:**
+        $$
+        \\text{{MDD}} = \\max_{{t}} \\left( \\frac{{\\max_{{s \\leq t}} P_s - P_t}}{{\\max_{{s \\leq t}} P_s}} \\right)
+        $$
+        """
+    )
 
 st.divider()
 
@@ -267,11 +271,11 @@ if shocks:
     )
     
     with st.expander("📐 Metodologia do Stress Test"):
-        st.markdown("""
+        st.markdown(r"""
         **Cenários:** Para cada choque percentual $s$ (ex: -0.10), calcula-se:
         
-        - **Novo preço:** $P_{\\text{novo}} = P_{\\text{atual}} \\times (1 + s)$
-        - **Variação absoluta:** $\\Delta P = P_{\\text{novo}} - P_{\\text{atual}}$
+        - **Novo preço:** $P_{\text{novo}} = P_{\text{atual}} \times (1 + s)$
+        - **Variação absoluta:** $\Delta P = P_{\text{novo}} - P_{\text{atual}}$
         - **Variação relativa:** $s$ (já definido)
         
         O gráfico mostra o impacto monetário (em unidades da moeda do ativo) para cada cenário.
@@ -297,10 +301,10 @@ st.plotly_chart(
 )
 
 with st.expander("📐 Metodologia do Histograma"):
-    st.markdown("""
+    st.markdown(r"""
     **Construção:** Os retornos diários são calculados como:
     $$
-    R_t = \\frac{P_t}{P_{t-1}} - 1
+    R_t = \frac{P_t}{P_{t-1}} - 1
     $$
     O histograma agrupa os retornos em intervalos (bins) e exibe a frequência de ocorrência.
     
@@ -316,7 +320,7 @@ st.divider()
 # NOTAS FINAIS E REFERÊNCIAS
 # --------------------------------------------------------------------------
 with st.expander("📚 Referências Bibliográficas"):
-    st.markdown("""
+    st.markdown(r"""
     - **Jorion, P. (2007).** *Value at Risk: The New Benchmark for Managing Financial Risk.* McGraw-Hill.
     - **Sharpe, W. F. (1966).** Mutual Fund Performance. *Journal of Business*, 39(1), 119-138.
     - **Sortino, F. A., & Price, L. N. (1994).** Performance Measurement in a Downside Risk Framework. *Journal of Investing*, 3(3), 59-64.
