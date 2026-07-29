@@ -1,13 +1,13 @@
 """
 Commodity Intelligence Terminal — Entry Point
 =================================================
-Página inicial com KPIs, gráfico de retorno acumulado e sidebar de navegação.
+Página inicial com KPIs, gráfico de retorno acumulado.
+A navegação é feita automaticamente pelo Streamlit via pasta pages/.
 """
 
 import streamlit as st
 import pandas as pd
 import datetime
-import os
 
 from config.settings import APP_NAME, APP_ICON, ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, THEME
 from data.data_manager import load_price_history_bulk
@@ -38,62 +38,24 @@ st.markdown(f"""
     .stTabs [aria-selected="true"] {{ color: {THEME['accent']} !important; }}
     div[data-testid="stDataFrame"] {{ border: 1px solid {THEME['border']}; border-radius: 8px; }}
     /* Ajuste para cards não truncarem números */
-    div[data-testid="stMetric"] > div:first-child {{ font-size: 1.1rem !important; }}
-    div[data-testid="stMetric"] > div:last-child {{ font-size: 1.4rem !important; font-weight: 600; }}
+    div[data-testid="stMetric"] > div:first-child {{ font-size: 0.9rem !important; }}
+    div[data-testid="stMetric"] > div:last-child {{ font-size: 1.5rem !important; font-weight: 600; }}
 </style>
 """, unsafe_allow_html=True)
 
 # --------------------------------------------------------------------------
-# SIDEBAR – Navegação Unificada
+# SIDEBAR – Personalização (sem lista de módulos)
 # --------------------------------------------------------------------------
 with st.sidebar:
     st.markdown(f"## {APP_ICON} {APP_NAME}")
     st.caption("Institutional Quant Research Platform")
     st.divider()
-    
-    # Obtém lista de páginas automaticamente
-    pages_dir = "pages"
-    if os.path.exists(pages_dir):
-        # Mapeia ícones baseados no nome do arquivo
-        icon_map = {
-            "global": "🌍", "energy": "🛢️", "metals": "⚙️", "agriculture": "🌾",
-            "brasil": "🇧🇷", "macro": "🔗", "risk": "⚠️", "forecast": "📈", "quant": "🧮"
-        }
-        # Lista os arquivos .py na ordem desejada
-        page_files = sorted([f for f in os.listdir(pages_dir) if f.endswith(".py")])
-        for file in page_files:
-            # Extrai nome amigável
-            name = file.replace(".py", "").split("_", 1)[-1].replace("_", " ").title()
-            # Tenta achar ícone
-            icon = "📄"
-            for key, val in icon_map.items():
-                if key in file.lower():
-                    icon = val
-                    break
-            # Cria link na sidebar
-            st.sidebar.page_link(f"pages/{file}", label=f"{icon} {name}")
-    else:
-        # Fallback caso a pasta não exista
-        st.markdown(
-            "**Módulos:**\n"
-            "- 🌍 Dashboard Global\n"
-            "- 🛢️ Energy Analytics\n"
-            "- ⚙️ Metals Analytics\n"
-            "- 🌾 Agriculture Analytics\n"
-            "- 🇧🇷 Commodities Brasileiras\n"
-            "- 🔗 Macro & Correlações\n"
-            "- ⚠️ Risk Analytics\n"
-            "- 📈 Forecast\n"
-            "- 🧮 Quant Research"
-        )
-    
-    st.divider()
+    # NÃO CRIE UMA LISTA DE MÓDULOS AQUI! O Streamlit já a cria automaticamente.
+    # Basta adicionar os controles extras:
     st.caption("Fontes: Yahoo Finance · FRED · fallback sintético automático")
-    
     if st.button("🔄 Atualizar dados (limpar cache)"):
         st.cache_data.clear()
         st.rerun()
-    
     st.caption(f"📅 {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # --------------------------------------------------------------------------
@@ -124,7 +86,7 @@ for col, asset in zip(cols, quick_assets):
     if not close.empty and pd.notna(close.iloc[-1]):
         last_price = close.iloc[-1]
         chg = metrics.pct_change_over(close, 1)
-        # Formata com 2 decimais (ou mais se necessário)
+        # Formata com 2 decimais para valores pequenos, ou 2 decimais para grandes
         if abs(last_price) < 100:
             display_price = f"{last_price:.2f}"
         else:
@@ -140,10 +102,11 @@ for col, asset in zip(cols, quick_assets):
             value=display_price,
             delta=display_delta,
         )
+        # Exibe badge de simulação, se for o caso
         if pdat.is_synthetic:
             st.caption("🔸 simulado")
         else:
-            st.caption("")  # espaço vazio para alinhar
+            st.caption("")  # placeholder para alinhamento
 
 st.divider()
 
