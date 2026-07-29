@@ -1,0 +1,28 @@
+# Ambiente
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Dados / cache local
+data/*.db
+data/*.duckdb
+*.cache/
+
+# MLflow (roadmap)
+mlruns/
+
+# SO / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Testes
+.pytest_cache/
+.coverage
+htmlcov/
