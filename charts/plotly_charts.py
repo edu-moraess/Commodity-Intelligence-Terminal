@@ -119,3 +119,87 @@ def histogram_chart(values, title: str = "", x_title: str = "") -> go.Figure:
     fig = go.Figure(data=[go.Histogram(x=values, marker_color=THEME["accent"], opacity=0.85)])
     fig.update_xaxes(title_text=x_title)
     return _apply_theme(fig, title)
+
+
+def var_breach_chart(returns: pd.Series, var_series: pd.Series, breaches: pd.Series,
+                      title: str = "Backtesting de VaR — Retornos vs. Limite Previsto") -> go.Figure:
+    """Gráfico institucional padrão de backtest de VaR: retorno diário
+    (barras), limite de VaR previsto (linha, invertido para o mesmo eixo
+    de perdas) e marcadores nos dias de breach (exceção)."""
+    idx = var_series.index
+    rets_aligned = returns.reindex(idx)
+
+    fig = go.Figure()
+    bar_colors = [THEME["negative"] if b else THEME["text_muted"] for b in breaches.reindex(idx).fillna(False)]
+    fig.add_trace(go.Bar(x=idx, y=rets_aligned, name="Retorno diário",
+                          marker_color=bar_colors, opacity=0.7))
+    fig.add_trace(go.Scatter(x=idx, y=-var_series, mode="lines", name="− VaR previsto",
+                              line=dict(color=THEME["warning"], width=1.6, dash="dot")))
+
+    breach_dates = breaches[breaches].index.intersection(idx)
+    if len(breach_dates) > 0:
+        fig.add_trace(go.Scatter(
+            x=breach_dates, y=rets_aligned.reindex(breach_dates), mode="markers",
+            name=f"Exceções ({len(breach_dates)})",
+            marker=dict(color=THEME["negative"], size=7, symbol="x", line=dict(width=1, color="white")),
+        ))
+    fig.update_yaxes(title_text="Retorno diário", tickformat=".1%")
+    return _apply_theme(fig, title, height=420)
+
+
+def regime_price_chart(close: pd.Series, viterbi_states: pd.Series,
+                        title: str = "Preço com Regimes de Volatilidade (HMM)") -> go.Figure:
+    """Preço com faixas verticais sombreadas indicando o regime (0 = baixa
+    vol, 1 = alta vol) identificado pelo Viterbi — leitura visual imediata
+    de quando o mercado esteve "calmo" vs "estressado"."""
+    fig = go.Figure()
+
+    states = viterbi_states.reindex(close.index).ffill().bfill()
+    shapes = []
+    if len(states) > 0:
+        run_start = states.index[0]
+        run_state = states.iloc[0]
+        for i in range(1, len(states)):
+            if states.iloc[i] != run_state:
+                if run_state == 1:
+                    shapes.append(dict(
+                        type="rect", xref="x", yref="paper",
+                        x0=run_start, x1=states.index[i], y0=0, y1=1,
+                        fillcolor=THEME["negative"], opacity=0.12, line_width=0,
+                    ))
+                run_start = states.index[i]
+                run_state = states.iloc[i]
+        if run_state == 1:
+            shapes.append(dict(
+                type="rect", xref="x", yref="paper",
+                x0=run_start, x1=states.index[-1], y0=0, y1=1,
+                fillcolor=THEME["negative"], opacity=0.12, line_width=0,
+            ))
+
+    fig.add_trace(go.Scatter(x=close.index, y=close.values, mode="lines",
+                              line=dict(color=THEME["accent"], width=1.8), name="Preço"))
+    layout = dict(_LAYOUT_DEFAULTS)
+    layout["shapes"] = shapes
+    layout["title"] = dict(text=title, font=dict(size=15, color=THEME["text"]))
+    fig.update_layout(**layout, height=420)
+    return fig
+
+
+def regime_probability_chart(state_probs: pd.DataFrame,
+                              title: str = "Probabilidade Suavizada de Regime") -> go.Figure:
+    """Área empilhada com P(baixa vol) e P(alta vol) ao longo do tempo —
+    complementa o regime_price_chart mostrando a confiança do modelo,
+    não só a classificação binária (Viterbi)."""
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=state_probs.index, y=state_probs["prob_baixa_vol"], mode="lines",
+        name="P(Baixa Volatilidade)", stackgroup="one",
+        line=dict(width=0.5, color=THEME["positive"]), fillcolor="rgba(62,207,142,0.55)",
+    ))
+    fig.add_trace(go.Scatter(
+        x=state_probs.index, y=state_probs["prob_alta_vol"], mode="lines",
+        name="P(Alta Volatilidade)", stackgroup="one",
+        line=dict(width=0.5, color=THEME["negative"]), fillcolor="rgba(229,72,77,0.55)",
+    ))
+    fig.update_yaxes(title_text="Probabilidade", range=[0, 1], tickformat=".0%")
+    return _apply_theme(fig, title, height=280)
