@@ -21,7 +21,7 @@ CHANGELOG v4.5.0 (fix de navegação):
   removido do topo de cada arquivo em pages/ (ver nota lá).
 """
 
-from datetime import datetime, timezone, timedelta  # <-- Ajustado
+from datetime import datetime, timezone, timedelta
 
 import streamlit as st
 import pandas as pd
@@ -34,7 +34,7 @@ from charts import plotly_charts as charts
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="expanded")
 
 # --------------------------------------------------------------------------
-# TEMA ESCURO INSTITUCIONAL (CSS) — aplicado uma vez, vale para toda navegação
+# TEMA ESCURO INSTITUCIONAL (CSS)
 # --------------------------------------------------------------------------
 st.markdown(f"""
 <style>
@@ -46,7 +46,6 @@ st.markdown(f"""
 
     .stApp {{ background-color: {THEME['background']}; }}
 
-    /* -------- Tipografia -------- */
     h1 {{
         color: {THEME['text']} !important;
         font-weight: 700 !important;
@@ -60,21 +59,14 @@ st.markdown(f"""
     p, .stMarkdown, .stCaption {{ color: {THEME['text']}; }}
     [data-testid="stCaptionContainer"] {{ color: {THEME['text_muted']} !important; }}
 
-    /* Números (métricas, tabelas) em monoespaçada — leitura mais fácil de séries */
     div[data-testid="stMetricValue"], div[data-testid="stDataFrame"] {{
         font-family: 'JetBrains Mono', 'Courier New', monospace;
     }}
 
-    /* -------- Sidebar -------- */
     section[data-testid="stSidebar"] {{
         background-color: {THEME['surface']};
         border-right: 1px solid {THEME['border']};
     }}
-    /* Item de navegação ativo na sidebar — destaque com barra lateral colorida.
-       NOTA: o DOM interno do st.navigation não é documentado oficialmente e
-       muda entre versões do Streamlit — por isso vários seletores candidatos
-       abaixo. Se nenhum "pegar" na sua versão, o app funciona normalmente,
-       só sem esse destaque específico (nada quebra). */
     section[data-testid="stSidebar"] [data-testid*="NavLink"][aria-current="page"],
     section[data-testid="stSidebar"] li[aria-current="page"] a,
     section[data-testid="stSidebar"] a[aria-current="page"] {{
@@ -93,7 +85,6 @@ st.markdown(f"""
         background-color: rgba(255,255,255,0.04) !important;
     }}
 
-    /* -------- Cards (st.metric) -------- */
     div[data-testid="stMetric"] {{
         background-color: {THEME['surface']};
         border: 1px solid {THEME['border']};
@@ -113,7 +104,6 @@ st.markdown(f"""
     }}
     div[data-testid="stMetric"] > div:nth-child(2) {{ font-size: 1.6rem !important; font-weight: 700 !important; }}
 
-    /* -------- Tabs -------- */
     .stTabs [data-baseweb="tab-list"] {{
         gap: 4px;
         border-bottom: 1px solid {THEME['border']};
@@ -129,14 +119,12 @@ st.markdown(f"""
         border-bottom: 2px solid {THEME['accent']} !important;
     }}
 
-    /* -------- DataFrames -------- */
     div[data-testid="stDataFrame"] {{
         border: 1px solid {THEME['border']};
         border-radius: 8px;
         overflow: hidden;
     }}
 
-    /* -------- Expanders -------- */
     div[data-testid="stExpander"] {{
         border: 1px solid {THEME['border']} !important;
         border-radius: 8px !important;
@@ -147,7 +135,6 @@ st.markdown(f"""
         color: {THEME['text']};
     }}
 
-    /* -------- Botões -------- */
     .stButton button {{
         border-radius: 6px;
         border: 1px solid {THEME['border']};
@@ -159,18 +146,14 @@ st.markdown(f"""
         color: {THEME['accent']};
     }}
 
-    /* -------- Inputs (select, slider, radio) -------- */
     .stSelectbox [data-baseweb="select"], .stTextInput input {{
         border-radius: 6px;
     }}
 
-    /* -------- Alertas / callouts -------- */
     div[data-testid="stAlert"] {{ border-radius: 8px; }}
 
-    /* -------- Divider mais discreto -------- */
     hr {{ border-color: {THEME['border']} !important; opacity: 0.6; }}
 
-    /* -------- Scrollbar customizada -------- */
     ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
     ::-webkit-scrollbar-track {{ background: {THEME['background']}; }}
     ::-webkit-scrollbar-thumb {{ background: {THEME['border']}; border-radius: 4px; }}
@@ -180,19 +163,19 @@ st.markdown(f"""
 
 
 # --------------------------------------------------------------------------
-# PÁGINA HOME — vira uma função, registrada abaixo via st.Page(render_home)
+# PÁGINA HOME
 # --------------------------------------------------------------------------
 def render_home() -> None:
     st.title(f"{APP_ICON} {APP_NAME}")
     st.caption("Monitoramento institucional do mercado global de commodities — Energia · Metais · Agricultura")
 
     quick_assets = [
-        ENERGY_ASSETS[0],   # Brent
-        ENERGY_ASSETS[1],   # WTI
-        METALS_ASSETS[0],   # Ouro
-        METALS_ASSETS[2],   # Cobre
-        AGRI_ASSETS[0],     # Soja
-        AGRI_ASSETS[2],     # Trigo
+        ENERGY_ASSETS[0],
+        ENERGY_ASSETS[1],
+        METALS_ASSETS[0],
+        METALS_ASSETS[2],
+        AGRI_ASSETS[0],
+        AGRI_ASSETS[2],
     ]
 
     with st.spinner("Carregando cotações..."):
@@ -245,7 +228,7 @@ def render_home() -> None:
         if cum_returns:
             st.plotly_chart(
                 charts.line_chart(cum_returns, title=f"Retorno Acumulado ({period_days} dias)", y_title="Retorno"),
-                width='stretch',  # <-- CORRIGIDO para eliminar warning
+                width="stretch",
             )
         else:
             st.warning("⚠️ Nenhum dado de retorno disponível para o período selecionado.")
@@ -268,7 +251,7 @@ def render_home() -> None:
 
 
 # --------------------------------------------------------------------------
-# SIDEBAR — branding persistente, roda em TODA página (antes de pg.run())
+# SIDEBAR
 # --------------------------------------------------------------------------
 with st.sidebar:
     st.markdown(f"## {APP_ICON} {APP_NAME}")
@@ -278,14 +261,13 @@ with st.sidebar:
     if st.button("🔄 Atualizar dados (limpar cache)"):
         st.cache_data.clear()
         st.rerun()
-    # ---- HORÁRIO CORRIGIDO PARA BRASÍLIA (UTC-3) ----
     brasilia_tz = timezone(timedelta(hours=-3))
     now_brasilia = datetime.now(brasilia_tz)
     st.caption(f"📅 {now_brasilia.strftime('%d/%m/%Y %H:%M')} (Brasília)")
     st.divider()
 
 # --------------------------------------------------------------------------
-# NAVEGAÇÃO EXPLÍCITA — cada página com título e ícone próprios
+# NAVEGAÇÃO EXPLÍCITA (inclui Portfolio)
 # --------------------------------------------------------------------------
 pg = st.navigation([
     st.Page(render_home, title="Visão Geral", icon="🏠", default=True, url_path="home"),
@@ -298,5 +280,6 @@ pg = st.navigation([
     st.Page("pages/7_⚠️_Risk_Analytics.py", title="Risk Analytics", icon="⚠️"),
     st.Page("pages/8_📈_Forecast.py", title="Forecast", icon="📈"),
     st.Page("pages/9_🧮_Quant_Research.py", title="Quant Research", icon="🧮"),
+    st.Page("pages/10_📊_Portfolio.py", title="Portfolio", icon="📊"),
 ])
 pg.run()
