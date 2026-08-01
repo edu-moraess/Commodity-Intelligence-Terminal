@@ -59,8 +59,8 @@ def kupiec_pof_test(breaches: pd.Series, confidence: float = 0.95) -> dict:
     esperada (1 - confidence). Estatística LR segue qui-quadrado(1) sob H0.
     """
     n = len(breaches)
-    x = int(breaches.sum())  # número de exceções observadas
-    p = 1 - confidence        # taxa esperada de exceções
+    x = int(breaches.sum())
+    p = 1 - confidence
 
     if n == 0:
         return {"n_obs": 0, "n_breaches": 0, "breach_rate": np.nan,
@@ -69,7 +69,6 @@ def kupiec_pof_test(breaches: pd.Series, confidence: float = 0.95) -> dict:
 
     pi_hat = x / n
 
-    # Log-likelihood sob H0 (taxa = p) vs H1 (taxa = pi_hat observada)
     def _loglik(prob, successes, trials):
         if prob <= 0 or prob >= 1:
             return -np.inf
@@ -91,19 +90,12 @@ def kupiec_pof_test(breaches: pd.Series, confidence: float = 0.95) -> dict:
 
 
 def christoffersen_independence_test(breaches: pd.Series) -> dict:
-    """Teste de Independência de Christoffersen (1998).
-
-    H0: as exceções são independentes ao longo do tempo (não formam
-    clusters). Um modelo de VaR "bom" não deve ter breaches concentrados
-    em períodos de estresse — isso indicaria que o modelo não reage
-    rápido o suficiente a mudanças de volatilidade.
-    """
+    """Teste de Independência de Christoffersen (1998)."""
     b = breaches.astype(int).values
     n = len(b)
     if n < 2:
         return {"lr_stat": np.nan, "p_value": np.nan, "reject_h0": None}
 
-    # Conta transições 0->0, 0->1, 1->0, 1->1
     n00 = n01 = n10 = n11 = 0
     for t in range(1, n):
         prev, curr = b[t - 1], b[t]
@@ -142,8 +134,7 @@ def christoffersen_independence_test(breaches: pd.Series) -> dict:
 
 def joint_backtest(close: pd.Series, confidence: float = 0.95, window: int = 252,
                     method: str = "historical") -> dict:
-    """Roda o pipeline completo: VaR rolling -> breaches -> Kupiec +
-    Christoffersen + teste conjunto (Christoffersen 1998, LR_cc = LR_pof + LR_ind ~ qui²(2))."""
+    """Pipeline completo: VaR rolling -> breaches -> Kupiec + Christoffersen + conjunto."""
     var_series = rolling_var_forecast(close, confidence, window, method)
     breaches = identify_breaches(close, var_series)
 
@@ -163,4 +154,107 @@ def joint_backtest(close: pd.Series, confidence: float = 0.95, window: int = 252
         "christoffersen": ind,
         "joint": {"lr_stat": lr_cc, "p_value": p_cc,
                   "reject_h0": bool(p_cc < 0.05) if np.isfinite(p_cc) else None},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Extensões institucionais: Dynamic Quantile Test + Traffic Light
+# ---------------------------------------------------------------------------
+
+def dynamic_quantile_test(breaches: pd.Series, var_series: pd.Series,
+                          confidence: float = 0.95) -> dict:
+    """
+    Dynamic Quantile (DQ) Test de Engle & Manganelli (2004).
+    Testa se as exceções são previsíveis a partir de informação passada
+    (VaR e lags de hits). H0: coeficientes = 0 (modelo bem calibrado).
+    """
+    hits = breaches.astype(float).values
+    n = len(hits)
+    if n < 30:
+        return {"dq_stat": np.nan, "p_value": np.nan, "reject_h0": None}
+
+    y = hits[1:]
+    X = np.column_stack([
+        np.ones(n - 1),
+        hits[:-1],
+        var_series.values[1:] if len(var_series) == n else var_series.values[-len(y):],
+    ])
+    try:
+        beta = np.linalg.lstsq(X, y, rcond=None)[0]
+        resid = y - X @ beta
+        sigma2 = np.sum(resid**2) / max(len(y) - X.shape[1], 1)
+        var_beta = sigma2 * np.linalg.inv(X.T @ X)
+        dq = float(beta.T @ np.linalg.inv(var_beta) @ beta)
+        p_value = float(1 - _stats.chi2.cdf(dq, df=len(beta)))
+        return {
+            "dq_stat": dq,
+            "p_value": p_value,
+            "reject_h0": bool(p_value < 0.05),
+            "coefficients": beta.tolist(),
+        }
+    except Exception:
+        return {"dq_stat": np.nan, "p_value": np.nan, "reject_h0": None}
+
+
+def traffic_light_test(n_breaches: int, n_obs: int, confidence: float = 0.95) -> dict:
+    """
+    Basel Traffic Light Approach (simplificado).
+    Zona Verde / Amarela / Vermelha com base no número de exceções.
+    """
+    p = 1 - confidence
+    expected = n_obs * p
+    from scipy.stats import binom
+    green_max = int(binom.ppf(0.95, n_obs, p))
+    yellow_max = int(binom.ppf(0.9999, n_obs, p))
+
+    if n_breaches <= green_max:
+        zone = "Verde"
+        action = "Modelo aceito — sem ação regulatória"
+    elif n_breaches <= yellow_max:
+        zone = "Amarela"
+        action = "Atenção — monitoramento reforçado / possível fator de multiplicação"
+    else:
+        zone = "Vermelha"
+        action = "Rejeição — modelo inadequado, revisão obrigatória"
+
+    return {
+        "zone": zone,
+        "n_breaches": n_breaches,
+        "n_obs": n_obs,
+        "expected": expected,
+        "green_max": green_max,
+        "yellow_max": yellow_max,
+        "action": action,
+    }
+
+
+def full_backtest_report(
+    close: pd.Series,
+    confidence: float = 0.95,
+    window: int = 252,
+    method: str = "historical",
+) -> dict:
+    """Relatório completo de backtesting institucional."""
+    base = joint_backtest(close, confidence, window, method)
+    breaches = base["breaches"]
+    var_series = base["var_series"]
+
+    dq = dynamic_quantile_test(breaches, var_series, confidence)
+    tl = traffic_light_test(
+        n_breaches=int(breaches.sum()),
+        n_obs=len(breaches),
+        confidence=confidence,
+    )
+
+    hit_ratio = float(breaches.mean()) if len(breaches) else np.nan
+    coverage = 1.0 - hit_ratio
+
+    return {
+        **base,
+        "dynamic_quantile": dq,
+        "traffic_light": tl,
+        "hit_ratio": hit_ratio,
+        "coverage_rate": coverage,
+        "n_exceptions": int(breaches.sum()),
+        "n_obs": len(breaches),
     }
