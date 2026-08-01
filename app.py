@@ -21,7 +21,7 @@ CHANGELOG v4.5.0 (fix de navegação):
   removido do topo de cada arquivo em pages/ (ver nota lá).
 """
 
-import datetime
+from datetime import datetime, timezone, timedelta  # <-- Ajustado
 
 import streamlit as st
 import pandas as pd
@@ -245,7 +245,7 @@ def render_home() -> None:
         if cum_returns:
             st.plotly_chart(
                 charts.line_chart(cum_returns, title=f"Retorno Acumulado ({period_days} dias)", y_title="Retorno"),
-                use_container_width=True,
+                width='stretch',  # <-- CORRIGIDO para eliminar warning
             )
         else:
             st.warning("⚠️ Nenhum dado de retorno disponível para o período selecionado.")
@@ -278,7 +278,10 @@ with st.sidebar:
     if st.button("🔄 Atualizar dados (limpar cache)"):
         st.cache_data.clear()
         st.rerun()
-    st.caption(f"📅 {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    # ---- HORÁRIO CORRIGIDO PARA BRASÍLIA (UTC-3) ----
+    brasilia_tz = timezone(timedelta(hours=-3))
+    now_brasilia = datetime.now(brasilia_tz)
+    st.caption(f"📅 {now_brasilia.strftime('%d/%m/%Y %H:%M')} (Brasília)")
     st.divider()
 
 # --------------------------------------------------------------------------
