@@ -56,7 +56,7 @@ st.caption(
 st.plotly_chart(
     charts.fan_chart(scenario["fan_chart"], scenario["preco_atual"], close.index[-1],
                       title=f"{asset.name} — Fan Chart ({horizon_label})"),
-    use_container_width=True,
+    width='stretch',  # <-- CORRIGIDO
 )
 
 st.divider()
@@ -67,7 +67,7 @@ st.plotly_chart(
         {"Histórico (180d)": close.tail(180), f"Projeção {trend_model}": trend_pred},
         title=f"Extrapolação de Tendência — {trend_model}",
     ),
-    use_container_width=True,
+    width='stretch',  # <-- CORRIGIDO
 )
 
 st.divider()
@@ -77,7 +77,7 @@ st.plotly_chart(
     charts.histogram_chart(scenario["final_prices_dist"],
                             title=f"Distribuição do preço em {horizon_days} dias",
                             x_title="Preço simulado"),
-    use_container_width=True,
+    width='stretch',  # <-- CORRIGIDO
 )
 
 st.info(
