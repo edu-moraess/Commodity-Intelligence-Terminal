@@ -83,11 +83,11 @@ with tab_overview:
 
     if shocks:
         stress_df = risk.stress_test(close, shocks_pct=shocks)
-        st.dataframe(stress_df, use_container_width=True, hide_index=True)
+        st.dataframe(stress_df, width='stretch', hide_index=True)  # <-- CORRIGIDO
         st.plotly_chart(
             charts.bar_chart(stress_df["choque"].tolist(), stress_df["variacao_absoluta"].tolist(),
                               title="Impacto Absoluto por Cenário de Choque"),
-            use_container_width=True,
+            width='stretch',  # <-- CORRIGIDO
         )
 
     st.divider()
@@ -96,7 +96,7 @@ with tab_overview:
     rets = metrics.daily_returns(close).tail(window)
     st.plotly_chart(
         charts.histogram_chart(rets.values, title="Histograma de Retornos", x_title="Retorno diário"),
-        use_container_width=True,
+        width='stretch',  # <-- CORRIGIDO
     )
 
 # ============================================================================
@@ -152,7 +152,7 @@ with tab_backtest:
         st.plotly_chart(
             charts.var_breach_chart(metrics.daily_returns(close), bt["var_series"], bt["breaches"],
                                      title=f"{asset.name} — Backtest de VaR ({method}, {confidence:.0%})"),
-            use_container_width=True,
+            width='stretch',  # <-- CORRIGIDO
         )
         st.caption(
             "Cada VaR do dia t é estimado usando **apenas** os `window` retornos anteriores a t "
@@ -224,12 +224,12 @@ with tab_regimes:
                 charts.regime_price_chart(close.tail(min(len(close), 1000)),
                                            reg["viterbi_states"].tail(min(len(close), 1000)),
                                            title=f"{asset.name} — Regimes de Volatilidade"),
-                use_container_width=True,
+                width='stretch',  # <-- CORRIGIDO
             )
 
             st.plotly_chart(
                 charts.regime_probability_chart(reg["state_probs"].tail(min(len(close), 1000))),
-                use_container_width=True,
+                width='stretch',  # <-- CORRIGIDO
             )
 
             st.divider()
@@ -240,7 +240,7 @@ with tab_regimes:
                 "Volatilidade anualizada": "{:.2%}",
                 "Persistência (prob. de permanecer)": "{:.2%}",
             }
-            st.dataframe(reg["regime_stats"].style.format(fmt_regime), use_container_width=True)
+            st.dataframe(reg["regime_stats"].style.format(fmt_regime), width='stretch')  # <-- CORRIGIDO
 
             st.subheader("Matriz de Transição")
             trans_df = pd.DataFrame(
@@ -248,7 +248,7 @@ with tab_regimes:
                 index=["De: Baixa Vol", "De: Alta Vol"],
                 columns=["Para: Baixa Vol", "Para: Alta Vol"],
             )
-            st.dataframe(trans_df.style.format("{:.2%}"), use_container_width=True)
+            st.dataframe(trans_df.style.format("{:.2%}"), width='stretch')  # <-- CORRIGIDO
 
             with st.expander("📘 Como interpretar o HMM de regimes"):
                 st.markdown(r"""
