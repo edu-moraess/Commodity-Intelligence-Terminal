@@ -13,11 +13,12 @@ import numpy as np
 
 from config.settings import THEME
 
+# MARGENS AJUSTADAS para eliminar espaço preto à direita
 _LAYOUT_DEFAULTS = dict(
     paper_bgcolor=THEME["surface"],
     plot_bgcolor=THEME["surface"],
     font=dict(color=THEME["text"], family="Inter, -apple-system, sans-serif", size=12),
-    margin=dict(l=40, r=20, t=48, b=32),
+    margin=dict(l=30, r=30, t=48, b=32),  # <-- r aumentado, l reduzido
     hovermode="x unified",
     legend=dict(bgcolor="rgba(0,0,0,0)", orientation="h", y=1.08, x=0),
     xaxis=dict(gridcolor=THEME["border"], zerolinecolor=THEME["border"]),
@@ -25,7 +26,7 @@ _LAYOUT_DEFAULTS = dict(
 )
 
 
-def _apply_theme(fig: go.Figure, title: str | None = None, height: int = 380) -> go.Figure:
+def _apply_theme(fig: go.Figure, title: str | None = None, height: int = 420) -> go.Figure:  # <-- altura padrão aumentada
     layout = dict(_LAYOUT_DEFAULTS)
     if title:
         layout["title"] = dict(text=title, font=dict(size=15, color=THEME["text"]))
@@ -84,7 +85,7 @@ def fan_chart(fan_df: pd.DataFrame, last_price: float, last_date: pd.Timestamp,
                               line=dict(color=THEME["accent"], width=2.4), name="Mediana (Base)"))
     fig.add_trace(go.Scatter(x=[last_date], y=[last_price], mode="markers",
                               marker=dict(color=THEME["text"], size=8), name="Preço Atual"))
-    return _apply_theme(fig, title, height=420)
+    return _apply_theme(fig, title, height=480)  # <-- altura aumentada
 
 
 def bar_chart(categories: list[str], values: list[float], title: str = "",
@@ -113,13 +114,13 @@ def treemap_chart(labels: list[str], parents: list[str], values: list[float],
         marker=dict(colorscale=[[0, THEME["negative"]], [0.5, THEME["surface"]], [1, THEME["positive"]]]),
         textfont=dict(color=THEME["text"]),
     ))
-    return _apply_theme(fig, title, height=420)
+    return _apply_theme(fig, title, height=480)  # <-- altura aumentada
 
 
 def histogram_chart(values, title: str = "", x_title: str = "") -> go.Figure:
     fig = go.Figure(data=[go.Histogram(x=values, marker_color=THEME["accent"], opacity=0.85)])
     fig.update_xaxes(title_text=x_title)
-    return _apply_theme(fig, title)
+    return _apply_theme(fig, title, height=400)  # <-- altura específica
 
 
 def var_breach_chart(returns: pd.Series, var_series: pd.Series, breaches: pd.Series,
@@ -278,4 +279,4 @@ def risk_return_scatter(df: pd.DataFrame, title: str = "Risco vs. Retorno") -> g
     fig.add_hline(y=0, line=dict(color=THEME["text_muted"], width=1, dash="dot"), opacity=0.5)
     fig.update_xaxes(title_text="Volatilidade Anualizada", tickformat=".0%")
     fig.update_yaxes(title_text="Sharpe Ratio")
-    return _apply_theme(fig, title, height=460)
+    return _apply_theme(fig, title, height=480)  # <-- altura aumentada
