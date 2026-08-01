@@ -1,11 +1,12 @@
 """
-Analytics — Métricas de Série de Preço (v4.4.0)
+Analytics — Métricas de Série de Preço (v4.4.1)
 ==================================================
 Funções puras (sem estado, sem I/O) sobre pd.Series de preços de fechamento.
 
-CHANGELOG v4.4.0:
-- summary_row() agora aceita parâmetro `window` opcional, usado pelo
-  Risk Analytics para respeitar a janela selecionada pelo usuário.
+CHANGELOG v4.4.1:
+- Corrigido FutureWarning em daily_returns: adicionado fill_method=None
+  para evitar depreciação futura.
+- Proteção extra em max_drawdown para séries vazias.
 """
 
 from __future__ import annotations
@@ -16,7 +17,8 @@ TRADING_DAYS = 252
 
 
 def daily_returns(close: pd.Series) -> pd.Series:
-    return close.pct_change().dropna()
+    # Correção: fill_method=None elimina o FutureWarning
+    return close.pct_change(fill_method=None).dropna()
 
 
 def pct_change_over(close: pd.Series, days: int) -> float | None:
@@ -66,6 +68,8 @@ def sortino_ratio(close: pd.Series, risk_free_annual: float = 0.045, window: int
 
 
 def max_drawdown(close: pd.Series) -> float:
+    if close.empty:
+        return 0.0
     cum_max = close.cummax()
     drawdown = close / cum_max - 1
     return float(drawdown.min())
