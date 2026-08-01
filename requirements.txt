@@ -10,19 +10,28 @@ scikit-learn>=1.5,<2.0
 yfinance>=0.2.40,<0.3
 requests>=2.32,<3.0
 python-dotenv>=1.0,<2.0
-pandas_datareader>=0.10.0,<0.11
 
-# --- Quant / Econometria (ativados) ---
-statsmodels>=0.14,<0.15
+# --- Quant / Econometria ---
+# arch é o único pacote desta seção com uso real no código hoje
+# (analytics/volatility.py, família GARCH/EGARCH/GJR/APARCH). Tem
+# fallback defensivo (_HAS_ARCH) caso não esteja instalado, então
+# mantê-lo é seguro mesmo que o build falhe por algum motivo.
 arch>=7.0,<8.0
 
-# --- Machine Learning (ativados) ---
-xgboost>=2.1,<3.0
-lightgbm>=4.5,<5.0
-catboost>=1.2,<2.0
-
-# --- Forecasting sazonal ---
-prophet>=1.1,<2.0
+# --- BUGFIX (deploy): pacotes abaixo estavam ativados mas SEM nenhum
+# import/uso real em todo o código-fonte (confirmado via grep completo
+# em analytics/, pages/, charts/, forecasting/, utils/, data/). Deixá-
+# los ativos só aumenta o tempo de build e o risco de falha — `prophet`
+# em especial é conhecido por quebrar builds em plataformas com CPU/
+# memória limitada (ex: Streamlit Community Cloud), pela dependência de
+# compilação do Stan/cmdstanpy. Descomente linha a linha SÓ quando
+# algum módulo passar a importar de fato o pacote correspondente.
+# statsmodels>=0.14,<0.15    # sem uso hoje — cointegration.py próprio (removido) usava impl. própria
+# xgboost>=2.1,<3.0          # sem uso hoje
+# lightgbm>=4.5,<5.0         # sem uso hoje
+# catboost>=1.2,<2.0         # sem uso hoje
+# prophet>=1.1,<2.0          # sem uso hoje — maior risco de build de todos
+# pandas_datareader>=0.10.0,<0.11  # sem uso hoje — yfinance/FRED cobrem as fontes atuais
 
 # --- Opcionais avançados (descomente conforme necessidade de infra) ---
 # polars>=1.5
