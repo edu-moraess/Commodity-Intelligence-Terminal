@@ -1,4 +1,4 @@
-# Commodity Intelligence Terminal — Dependências
+# Commodity Intelligence Terminal — Dependências Institucionais (v2.0)
 # Instalar com: pip install -r requirements.txt
 
 streamlit>=1.38,<2.0
@@ -10,16 +10,23 @@ scikit-learn>=1.5,<2.0
 yfinance>=0.2.40,<0.3
 requests>=2.32,<3.0
 python-dotenv>=1.0,<2.0
-pandas_datareader>=0.10.0,<0.11  # <-- NOVA LINHA ADICIONADA
+pandas_datareader>=0.10.0,<0.11
 
-# --- Opcionais (habilitados no roadmap de expansão — ver README) ---
-# polars>=1.5           # engine alternativa de dataframe de alta performance
-# duckdb>=1.0           # OLAP local para consultas sobre grandes painéis
-# statsmodels>=0.14      # VAR / VECM / cointegração
-# arch>=7.0              # EGARCH / DCC-GARCH mais completos que o GARCH(1,1) próprio
-# prophet>=1.1            # forecasting sazonal (Meta Prophet)
-# xgboost>=2.1
-# lightgbm>=4.5
-# catboost>=1.2
-# torch>=2.3              # LSTM / GRU / TFT
-# mlflow>=2.16            # model registry e tracking de experimentos
+# --- Quant / Econometria (ativados) ---
+statsmodels>=0.14,<0.15
+arch>=7.0,<8.0
+
+# --- Machine Learning (ativados) ---
+xgboost>=2.1,<3.0
+lightgbm>=4.5,<5.0
+catboost>=1.2,<2.0
+
+# --- Forecasting sazonal ---
+prophet>=1.1,<2.0
+
+# --- Opcionais avançados (descomente conforme necessidade de infra) ---
+# polars>=1.5
+# duckdb>=1.0
+# torch>=2.3              # LSTM / GRU / TFT (requer GPU preferencialmente)
+# mlflow>=2.16
+# shap>=0.44              # SHAP values (requer torch ou tree models)
