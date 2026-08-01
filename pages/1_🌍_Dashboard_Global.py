@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 
 from config.settings import ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, APP_NAME, RISK_FREE_RATE_ANNUAL
 from data.data_manager import load_price_history_bulk
-from analytics import metrics
+from analytics import metrics, signals
 from charts import plotly_charts as charts
 
 # NOTA v4.5.0: st.set_page_config() removido daqui — agora é chamado
@@ -54,7 +53,7 @@ if n_synthetic:
     )
 
 # --------------------------------------------------------------------------
-# KPIs DE TOPO (com tratamento robusto)
+# KPIs DE TOPO (com tratamento de NaN)
 # --------------------------------------------------------------------------
 gold = price_data.get("GC=F")
 brent = price_data.get("BZ=F")
@@ -67,79 +66,40 @@ for col, pdat, label in zip(
     [brent, gold, copper, soy],
     ["Brent (USD/bbl)", "Ouro (USD/oz)", "Cobre (USD/lb)", "Soja (USd/bu)"],
 ):
-    if pdat is None or pdat.df.empty:
-        with col:
-            st.metric(label, "N/D", delta=None)
+    if pdat is None:
         continue
-    close = pdat.df["Close"].dropna()
-    if close.empty:
-        with col:
-            st.metric(label, "N/D", delta=None)
-        continue
-    last_price = close.iloc[-1]
-    chg = metrics.pct_change_over(close, 1)
-    display_price = f"{last_price:.2f}" if pd.notna(last_price) else "N/D"
-    display_delta = f"{chg:+.2%}" if (chg is not None and pd.notna(chg)) else None
+    close = pdat.df["Close"]
+    if not close.empty and pd.notna(close.iloc[-1]):
+        last_price = close.iloc[-1]
+        chg = metrics.pct_change_over(close, 1)
+        display_price = f"{last_price:.2f}"
+        display_delta = f"{chg:+.2%}" if pd.notna(chg) else None
+    else:
+        display_price = "N/D"
+        display_delta = None
     with col:
         st.metric(label, display_price, display_delta)
 
 st.divider()
 
 # --------------------------------------------------------------------------
-# TABELA MESTRE POR SETOR (com tratamento de erros e dados insuficientes)
+# TABELA MESTRE POR SETOR (com formatação e tratamento de NaN)
 # --------------------------------------------------------------------------
 def build_table(assets):
     rows = []
     for a in assets:
-        pdat = price_data.get(a.ticker)
-        if pdat is None or pdat.df.empty:
-            # Adiciona linha com valores vazios
-            rows.append({
-                "Ativo": a.name + " 🔸 (sem dados)",
-                "Unidade": a.unit,
-                "Último": None,
-                "1D": None, "1S": None, "1M": None, "YTD": None,
-                "Vol.Anual": None, "Sharpe": None, "Sortino": None,
-                "Max DD": None, "Calmar": None,
-                "Momentum": None, "Tendência": "N/D",
-            })
-            continue
-        close = pdat.df["Close"].dropna()
-        # Se a série for muito curta, usa apenas métricas disponíveis
-        if len(close) < 2:
-            rows.append({
-                "Ativo": a.name + (" 🔸" if pdat.is_synthetic else ""),
-                "Unidade": a.unit,
-                "Último": close.iloc[-1] if not close.empty else None,
-                "1D": None, "1S": None, "1M": None, "YTD": None,
-                "Vol.Anual": None, "Sharpe": None, "Sortino": None,
-                "Max DD": None, "Calmar": None,
-                "Momentum": None, "Tendência": "N/D",
-            })
-            continue
-        try:
-            row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
-            rows.append({
-                "Ativo": a.name + (" 🔸" if pdat.is_synthetic else ""),
-                "Unidade": a.unit,
-                "Último": row["last_price"],
-                "1D": row["chg_1d"], "1S": row["chg_1w"], "1M": row["chg_1m"], "YTD": row["chg_ytd"],
-                "Vol.Anual": row["vol_annual"], "Sharpe": row["sharpe"], "Sortino": row["sortino"],
-                "Max DD": row["max_drawdown"], "Calmar": row["calmar"],
-                "Momentum": row["momentum"], "Tendência": row["trend"],
-            })
-        except Exception as e:
-            # Fallback: registra o erro e insere linha com dados parciais
-            st.warning(f"Erro ao processar {a.name} ({a.ticker}): {str(e)}")
-            rows.append({
-                "Ativo": a.name + " 🔸 (erro)",
-                "Unidade": a.unit,
-                "Último": close.iloc[-1] if not close.empty else None,
-                "1D": None, "1S": None, "1M": None, "YTD": None,
-                "Vol.Anual": None, "Sharpe": None, "Sortino": None,
-                "Max DD": None, "Calmar": None,
-                "Momentum": None, "Tendência": "N/D",
-            })
+        pdat = price_data[a.ticker]
+        close = pdat.df["Close"]
+        row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
+        rows.append({
+            "Ativo": a.name + (" 🔸" if pdat.is_synthetic else ""),
+            "Unidade": a.unit,
+            "Último": row["last_price"],
+            "1D": row["chg_1d"], "1S": row["chg_1w"], "1M": row["chg_1m"], "YTD": row["chg_ytd"],
+            "Vol.Anual": row["vol_annual"], "Sharpe": row["sharpe"], "Sortino": row["sortino"],
+            "Max DD": row["max_drawdown"], "Calmar": row["calmar"],
+            "Momentum": row["momentum"], "Tendência": row["trend"],
+        })
     return pd.DataFrame(rows).set_index("Ativo")
 
 # Formatação da tabela
@@ -152,10 +112,9 @@ tabs = st.tabs(list(ALL_SECTORS.keys()) + ["Todos"])
 for tab, (sector_name, assets) in zip(tabs[:-1], ALL_SECTORS.items()):
     with tab:
         df = build_table(assets)
-        # Substituição de use_container_width por width='stretch'
         st.dataframe(
             df.style.format(fmt, na_rep="-"),
-            width='stretch',
+            use_container_width=True,
             height=min(38 * (len(df) + 1) + 20, 400)
         )
 
@@ -163,7 +122,7 @@ with tabs[-1]:
     df_all = build_table(ALL_ASSETS)
     st.dataframe(
         df_all.style.format(fmt, na_rep="-"),
-        width='stretch',
+        use_container_width=True,
         height=560
     )
 
@@ -215,7 +174,7 @@ with st.expander("📐 Como as métricas são calculadas? (Fórmulas)"):
 st.divider()
 
 # --------------------------------------------------------------------------
-# TREEMAP DE PERFORMANCE (com proteção contra dados insuficientes)
+# TREEMAP DE PERFORMANCE (com metodologia integrada)
 # --------------------------------------------------------------------------
 st.subheader("🗺️ Mapa de Performance (1 mês)")
 st.caption("Cada bloco representa um ativo; o tamanho é proporcional ao valor absoluto da variação no mês.")
@@ -226,27 +185,16 @@ for sector_name, assets in ALL_SECTORS.items():
     parents.append("")
     values.append(1)  # peso neutro no nível de setor
     for a in assets:
-        pdat = price_data.get(a.ticker)
-        if pdat is None or pdat.df.empty:
-            continue
-        close = pdat.df["Close"].dropna()
-        if len(close) < 2:
-            continue
-        chg = metrics.pct_change_over(close, 21)
-        if chg is None or not pd.notna(chg):
-            chg = 0.0
+        close = price_data[a.ticker].df["Close"]
+        chg = metrics.pct_change_over(close, 21) or 0.0
         labels.append(a.name)
         parents.append(sector_name)
         values.append(abs(chg) + 0.01)
 
-# Só exibe o treemap se houver dados
-if len(labels) > len(ALL_SECTORS):
-    st.plotly_chart(
-        charts.treemap_chart(labels, parents, values, title="Tamanho = |variação 1M| (ilustrativo)"),
-        width='stretch'
-    )
-else:
-    st.info("Não há dados suficientes para gerar o mapa de performance.", icon="ℹ️")
+st.plotly_chart(
+    charts.treemap_chart(labels, parents, values, title="Tamanho = |variação 1M| (ilustrativo)"),
+    use_container_width=True
+)
 
 with st.expander("📐 Como interpretar o Treemap?"):
     st.markdown(r"""
@@ -263,8 +211,94 @@ with st.expander("📐 Como interpretar o Treemap?"):
 st.divider()
 
 # --------------------------------------------------------------------------
-# RODAPÉ COM FONTES E NOTAS
+# RISCO-RETORNO CONSOLIDADO (scatter) + PAINEL DE SINAIS
 # --------------------------------------------------------------------------
+st.subheader("🎯 Risco vs. Retorno — Visão Consolidada")
+st.caption(
+    "Cada bolha é um ativo: eixo X = volatilidade anualizada, eixo Y = Sharpe Ratio, "
+    "tamanho da bolha = |momentum composto|. Ativos no quadrante superior-esquerdo "
+    "(baixa vol, Sharpe alto) têm o melhor perfil risco-retorno recente."
+)
+
+with st.spinner("Calculando sinais de risco para todos os ativos..."):
+    scatter_rows = []
+    signal_rows = []
+    for sector_name, assets in ALL_SECTORS.items():
+        for a in assets:
+            pdat = price_data[a.ticker]
+            close = pdat.df["Close"]
+            row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
+            if row["last_price"] is None or pd.isna(row["vol_annual"]):
+                continue
+            scatter_rows.append({
+                "name": a.name, "sector": sector_name,
+                "vol": row["vol_annual"], "sharpe": row["sharpe"], "momentum": row["momentum"],
+            })
+            sig = signals.build_signal_row(close, momentum=row["momentum"])
+            signal_rows.append({
+                "Ativo": a.name + (" 🔸" if pdat.is_synthetic else ""),
+                "Setor": sector_name,
+                "Regime de Vol.": sig["vol_regime"],
+                "Momentum": sig["momentum_label"],
+                "Z-Score Retorno (1d)": sig["return_zscore"],
+                "Movimento Atípico": "⚠️ Sim" if sig["extreme_move"] else "Não",
+            })
+
+scatter_df = pd.DataFrame(scatter_rows)
+if not scatter_df.empty:
+    st.plotly_chart(charts.risk_return_scatter(scatter_df), use_container_width=True)
+else:
+    st.info("Dados insuficientes para o gráfico de risco-retorno.")
+
+st.divider()
+
+st.subheader("🚨 Painel de Sinais Consolidado")
+st.caption(
+    "Leitura rápida de regime de volatilidade (percentil da vol. realizada 21d vs. a própria "
+    "história do ativo) e movimentos atípicos (z-score do retorno diário). Para análise "
+    "aprofundada de um ativo específico — incluindo HMM completo e backtesting formal de VaR — "
+    "use a página **Risk Analytics**."
+)
+
+signal_df = pd.DataFrame(signal_rows).set_index("Ativo")
+n_alerts = (signal_df["Movimento Atípico"] == "⚠️ Sim").sum()
+n_high_vol = signal_df["Regime de Vol."].str.contains("Elevada").sum()
+
+sc1, sc2, sc3 = st.columns(3)
+sc1.metric("Ativos Monitorados", len(signal_df))
+sc2.metric("Em Volatilidade Elevada", int(n_high_vol))
+sc3.metric("Movimentos Atípicos Hoje", int(n_alerts))
+
+filter_option = st.radio(
+    "Filtrar", ["Todos", "Só Vol. Elevada", "Só Movimentos Atípicos"],
+    horizontal=True, key="signal_filter",
+)
+display_df = signal_df.copy()
+if filter_option == "Só Vol. Elevada":
+    display_df = display_df[display_df["Regime de Vol."].str.contains("Elevada")]
+elif filter_option == "Só Movimentos Atípicos":
+    display_df = display_df[display_df["Movimento Atípico"] == "⚠️ Sim"]
+
+st.dataframe(
+    display_df.style.format({"Z-Score Retorno (1d)": "{:.2f}"}, na_rep="-"),
+    use_container_width=True,
+    height=min(38 * (len(display_df) + 1) + 20, 500),
+)
+
+with st.expander("📐 Metodologia do Painel de Sinais"):
+    st.markdown(r"""
+    **Regime de Volatilidade:** calcula a volatilidade realizada em janela curta (21 pregões) e
+    compara com a distribuição de volatilidade rolante do próprio ativo nos últimos 252 pregões,
+    reportando o percentil. ≥80º percentil = "Vol. Elevada"; ≤20º percentil = "Vol. Baixa".
+    É um proxy rápido — para uma classificação de regime estatisticamente rigorosa (Hidden Markov
+    Model com teste de significância), use a aba **Regimes de Volatilidade** em Risk Analytics.
+
+    **Z-Score do Retorno:** normaliza o retorno do último pregão pela média e desvio-padrão dos
+    últimos 63 retornos. \(|z| > 2\) é sinalizado como movimento atípico (~2 desvios-padrão,
+    ocorrência esperada em ~5% dos dias sob normalidade).
+    """)
+
+
 st.caption(
     "Fontes: Yahoo Finance (preços de futuros/proxies) com fallback sintético automático. "
     "Métricas: retornos, volatilidade anualizada (63d), Sharpe/Sortino/Calmar (252d, "
