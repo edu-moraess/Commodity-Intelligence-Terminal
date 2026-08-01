@@ -5,6 +5,7 @@ import numpy as np
 from config.settings import ALL_ASSETS, RISK_FREE_RATE_ANNUAL, APP_NAME
 from data.data_manager import load_price_history_bulk, build_price_panel
 from analytics import portfolio as port
+from analytics import portfolio_advanced as port_adv
 from charts import plotly_charts as charts
 
 st.title("📊 Portfolio Optimization")
@@ -25,7 +26,26 @@ if len(sel_assets) < 2:
     st.info("Selecione ao menos 2 ativos.")
     st.stop()
 
-col_m, col_w, col_rf = st.columns(3)
+# ---- Seletor de janela com YTD ----
+col_w_opt, col_m, col_rf = st.columns(3)
+with col_w_opt:
+    window_option = st.selectbox(
+        "Base de dados para otimização",
+        ["Últimos 252 pregões", "Últimos 63 pregões", "YTD (desde jan/2026)", "Personalizado"],
+        index=0,
+    )
+    if window_option == "YTD (desde jan/2026)":
+        ytd_start = pd.Timestamp(pd.Timestamp.now().year, 1, 1)
+        window = (pd.Timestamp.now() - ytd_start).days
+        window = max(60, min(500, int(window * 0.7)))
+        st.caption(f"Janela YTD: ~{window} pregões")
+    elif window_option == "Personalizado":
+        window = st.slider("Janela de estimação (pregões)", 60, 500, 252, step=20)
+    elif window_option == "Últimos 63 pregões":
+        window = 63
+    else:  # 252
+        window = 252
+
 with col_m:
     method_labels = {
         "Max Sharpe": "max_sharpe",
@@ -37,8 +57,7 @@ with col_m:
     }
     method_label = st.selectbox("Método", list(method_labels.keys()), index=0)
     method = method_labels[method_label]
-with col_w:
-    window = st.slider("Janela de estimação (pregões)", 60, 500, 252, step=20)
+
 with col_rf:
     rf = st.number_input(
         "Risk-free anual",
@@ -51,18 +70,55 @@ with col_rf:
 
 long_only = st.checkbox("Long-only (sem short)", value=True)
 
+# ---- Configurações Avançadas ----
+with st.expander("⚙️ Configurações Avançadas"):
+    remove_outliers = st.checkbox("Remover outliers (|z|>3)", value=False)
+    if remove_outliers:
+        st.caption("Remove retornos com z-score > 3 para evitar distorções.")
+
+# ---- Carregamento ----
 with st.spinner("Carregando preços e otimizando..."):
     price_data = load_price_history_bulk(sel_assets)
-    panel = build_price_panel(price_data)
+    panel_raw = build_price_panel(price_data)
 
-if panel.empty or panel.shape[1] < 2:
+if panel_raw.empty or panel_raw.shape[1] < 2:
     st.error("Dados de preço insuficientes.")
     st.stop()
 
 ticker_to_name = {a.ticker: a.name for a in sel_assets}
-panel = panel.rename(columns={c: ticker_to_name.get(c, c) for c in panel.columns})
-panel = panel[[c for c in panel.columns if c in sel_names]]
+panel_raw = panel_raw.rename(columns={c: ticker_to_name.get(c, c) for c in panel_raw.columns})
+panel_raw = panel_raw[[c for c in panel_raw.columns if c in sel_names]]
 
+# ---- Aplica janela selecionada ----
+panel = port_adv.get_window_data(panel_raw, window_option, custom_window=window)
+
+# ---- Diagnóstico das séries ----
+with st.expander("🔍 Diagnóstico das Séries (verifique anomalias)"):
+    diag_df = port_adv.asset_diagnostics(panel_raw, window=window)
+    st.dataframe(
+        diag_df.style.format({
+            "Retorno Janela (anual.)": "{:.2%}",
+            "Retorno YTD": "{:.2%}",
+            "Vol. Janela": "{:.2%}",
+            "Max DD": "{:.2%}",
+            "Skew": "{:.2f}",
+            "Kurtosis": "{:.2f}",
+        }, na_rep="-"),
+        width="stretch"
+    )
+    anomalies = diag_df[diag_df["Anomalia"] != ""]
+    if not anomalies.empty:
+        st.warning(f"⚠️ Ativos com divergência significativa: {', '.join(anomalies.index.tolist())}")
+
+# ---- Validação de outliers ----
+if remove_outliers:
+    rets = panel.pct_change().dropna()
+    panel_clean = port_adv.validate_returns(rets)
+    # Reconstrói painel a partir dos retornos limpos
+    panel = (1 + panel_clean).cumprod() * panel.iloc[0]
+    st.success("Outliers removidos com sucesso.")
+
+# ---- Otimização ----
 try:
     result = port.optimize_portfolio(
         panel, method=method, window=window, risk_free=rf, long_only=long_only
@@ -200,20 +256,57 @@ if st.button("Calcular fronteira eficiente", type="primary"):
 
 st.divider()
 
-# ---- Comparação de métodos ----
-st.subheader("Comparação de Métodos")
-if st.button("Comparar todos os métodos"):
+# ---- Comparação avançada de métodos ----
+st.subheader("Comparação Avançada de Métodos")
+if st.button("Comparar todos os métodos (com diagnóstico)", key="compare_adv"):
     with st.spinner("Otimizando todos os métodos..."):
-        cmp = port.compare_methods(panel, window=window, risk_free=rf)
-    if cmp is not None and not cmp.empty:
-        fmt = {}
-        for c in cmp.columns:
-            if c in ("Método", "Erro", "N ativos > 1%"):
-                continue
-            fmt[c] = "{:.2%}" if ("DD" in c or "Retorno" in c or "Vol" in c) else "{:.2f}"
-        st.dataframe(cmp.style.format(fmt, na_rep="—"), width="stretch", hide_index=True)
+        cmp_df = port_adv.compare_methods_advanced(
+            panel, window=window, risk_free=rf, long_only=long_only
+        )
+    if cmp_df is not None and not cmp_df.empty:
+        fmt = {
+            "Retorno": "{:.2%}",
+            "Vol": "{:.2%}",
+            "Sharpe": "{:.2f}",
+            "Max DD": "{:.2%}",
+            "HHI (concentração)": "{:.3f}",
+            "Turnover (vs Equal)": "{:.2%}",
+        }
+        st.dataframe(cmp_df.style.format(fmt, na_rep="—"), width="stretch")
     else:
         st.warning("Comparação sem resultados.")
+
+st.divider()
+
+# ---- Walk-Forward Backtest (out-of-sample) ----
+with st.expander("📊 Backtest Out-of-Sample (Walk-Forward)"):
+    st.caption("Rebalanceamento mensal (21 pregões) – avalia o desempenho real da estratégia fora da amostra.")
+    if st.button("Rodar Walk-Forward Backtest", key="wf_btn"):
+        from analytics.portfolio_advanced import walk_forward_backtest
+        with st.spinner("Executando walk-forward (isso pode levar alguns segundos)..."):
+            wf = walk_forward_backtest(
+                panel, method=method, window=window,
+                risk_free=rf, long_only=long_only, rebalance_freq=21
+            )
+        if wf["equity_curve"].empty:
+            st.warning("Não foi possível executar o backtest.")
+        else:
+            st.subheader("Curva de Equity (Out-of-Sample)")
+            st.plotly_chart(
+                charts.line_chart(
+                    {"Out-of-Sample (Walk-Forward)": wf["equity_curve"]},
+                    title="Desempenho Real (fora da amostra)",
+                    y_title="NAV"
+                ),
+                width="stretch"
+            )
+            s = wf["stats"]
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Retorno (anual.)", f"{s['expected_return']:.2%}")
+            c2.metric("Vol. (anual.)", f"{s['volatility']:.2%}")
+            c3.metric("Sharpe (out-of-sample)", f"{s['sharpe']:.2f}")
+            c4.metric("Max DD", f"{s['max_drawdown']:.2%}")
+            st.info(f"Rebalanceamentos realizados: {wf['n_rebalances']}")
 
 st.divider()
 st.caption(
