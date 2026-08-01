@@ -17,12 +17,28 @@ from analytics import portfolio as port
 
 
 def validate_returns(returns: pd.DataFrame, z_threshold: float = 3.0) -> pd.DataFrame:
+    """Remove outliers extremos (|z-score| > threshold) por coluna e
+    interpola os buracos resultantes.
+
+    BUGFIX: `scipy.stats.zscore` retorna um ndarray puro (sem `.index`),
+    mesmo recebendo uma Series como entrada. O código original fazia
+    `outliers.index[outliers]`, o que quebrava com
+    `AttributeError: 'numpy.ndarray' object has no attribute 'index'`
+    todo santa vez que a checkbox "Remover outliers" era marcada na UI.
+    Corrigido usando o índice da própria Series de dados (`col_data`),
+    que é sempre um pandas Series de verdade, independente do que
+    `zscore` devolver internamente.
+    """
     clean = returns.copy()
     for col in clean.columns:
-        z = zscore(clean[col].dropna())
-        outliers = np.abs(z) > z_threshold
-        if outliers.any():
-            clean.loc[outliers.index[outliers], col] = np.nan
+        col_data = clean[col].dropna()
+        if len(col_data) < 2:
+            continue
+        z = np.asarray(zscore(col_data.values))
+        outlier_mask = np.abs(z) > z_threshold
+        if outlier_mask.any():
+            outlier_index = col_data.index[outlier_mask]
+            clean.loc[outlier_index, col] = np.nan
             clean[col] = clean[col].interpolate(method='linear', limit=5)
     return clean.dropna(axis=0, how='any')
 
@@ -82,8 +98,18 @@ def walk_forward_backtest(
         daily_ret = (rets.loc[date] * current_weights).sum()
         if pd.notna(daily_ret):
             equity.loc[date] = equity.shift(1).fillna(1.0).loc[date] * (1 + daily_ret)
-    
-    equity = equity.fillna(1.0).cumprod()
+
+    # BUGFIX: `equity` acima já é o nível acumulado (equity_t = equity_{t-1}
+    # * (1 + retorno_t), calculado dentro do loop) — NÃO uma série de
+    # multiplicadores por período. O código original aplicava
+    # `.cumprod()` em cima disso, compondo valores que já eram níveis
+    # >1 entre si e explodindo exponencialmente (cheguei a ver retorno
+    # anualizado de "99 trilhões %" e drawdown de -99,9999% num teste
+    # com dados sintéticos — nenhum erro era lançado, só números
+    # absurdos exibidos como se fossem reais). Basta preencher os dias
+    # sem rebalanceamento ainda ativo (antes do primeiro `window`) com
+    # 1.0, sem recompor.
+    equity = equity.fillna(1.0)
     
     rets_series = equity.pct_change().dropna()
     ann_return = (rets_series.mean() + 1) ** 252 - 1
