@@ -56,7 +56,7 @@ st.plotly_chart(
         {"GARCH(1,1)": garch["conditional_vol_annualized"], "EWMA (RiskMetrics λ=0.94)": ewma},
         title="Volatilidade Condicional Anualizada", y_title="%",
     ),
-    use_container_width=True,
+    width='stretch',  # <-- CORRIGIDO
 )
 
 st.divider()
@@ -105,7 +105,10 @@ if st.button("Rodar Walk-Forward Validation", type="primary"):
             "RMSE (1-step, unid. preço)": np.sqrt(np.mean(r["rmse"])),
         })
     df_summary = pd.DataFrame(summary).set_index("Modelo").sort_values("RMSE (1-step, unid. preço)")
-    st.dataframe(df_summary.style.format("{:.4f}"), use_container_width=True)
+    st.dataframe(
+        df_summary.style.format("{:.4f}"),
+        width='stretch'  # <-- CORRIGIDO
+    )
     best = df_summary.index[0]
     st.success(f"Melhor modelo por RMSE fora da amostra: **{best}**")
 else:
