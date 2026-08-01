@@ -100,7 +100,7 @@ def render_sector_page(
     
     st.dataframe(
         df_table.style.format(style_dict, na_rep="-"),
-        use_container_width=True,
+        width='stretch',  # <-- CORRIGIDO
     )
 
     # -------- Expander com fórmulas das métricas (genérico para todos os setores) --------
@@ -159,7 +159,7 @@ def render_sector_page(
     else:
         st.plotly_chart(
             charts.candlestick_chart(selected_df.tail(180), title=f"{selected_asset.name} — 180 pregões"),
-            use_container_width=True,
+            width='stretch',  # <-- CORRIGIDO
         )
 
         col_a, col_b = st.columns(2)
@@ -167,7 +167,7 @@ def render_sector_page(
             cum_ret = metrics.cumulative_return_series(selected_df["Close"])
             st.plotly_chart(
                 charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
-                use_container_width=True,
+                width='stretch',  # <-- CORRIGIDO
             )
         with col_b:
             try:
@@ -179,7 +179,7 @@ def render_sector_page(
             st.plotly_chart(
                 charts.bar_chart(["Volume médio (20d)"], [avg_volume],
                                   title="Volume Médio Recente", positive_negative=False),
-                use_container_width=True,
+                width='stretch',  # <-- CORRIGIDO
             )
 
     st.divider()
@@ -194,7 +194,10 @@ def render_sector_page(
             st.info("Dados insuficientes para calcular a matriz de correlação.")
         else:
             corr = correlation.correlation_matrix(panel, window=126)
-            st.plotly_chart(charts.correlation_heatmap(corr, title="Correlação (126 pregões)"), use_container_width=True)
+            st.plotly_chart(
+                charts.correlation_heatmap(corr, title="Correlação (126 pregões)"),
+                width='stretch'  # <-- CORRIGIDO
+            )
 
     # -------- Notas metodológicas de fonte de dados --------
     if any(a.note for a in assets):
