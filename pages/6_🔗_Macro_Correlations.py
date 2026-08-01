@@ -73,7 +73,7 @@ if corr.empty:
 else:
     st.plotly_chart(
         charts.correlation_heatmap(corr, title=f"Correlação ({window} pregões)"),
-        use_container_width=True,
+        width='stretch',  # <-- CORRIGIDO
     )
 
 st.divider()
@@ -92,7 +92,7 @@ if roll_corr.empty:
 else:
     st.plotly_chart(
         charts.line_chart({f"Corr({asset_a}, {asset_b})": roll_corr}, title="Correlação Rolante", y_title="ρ"),
-        use_container_width=True,
+        width='stretch',  # <-- CORRIGIDO
     )
 
 st.divider()
@@ -104,8 +104,11 @@ if pca_result["explained_variance_ratio"]:
     st.plotly_chart(
         charts.bar_chart([f"PC{i+1}" for i in range(len(exp_var))], exp_var,
                           title="Variância Explicada por Componente", positive_negative=False),
-        use_container_width=True,
+        width='stretch',  # <-- CORRIGIDO
     )
-    st.dataframe(pca_result["loadings"].style.format("{:.3f}"), use_container_width=True)
+    st.dataframe(
+        pca_result["loadings"].style.format("{:.3f}"),
+        width='stretch'  # <-- CORRIGIDO
+    )
 else:
     st.info("Selecione ao menos 2 ativos com histórico suficiente para calcular PCA.")
