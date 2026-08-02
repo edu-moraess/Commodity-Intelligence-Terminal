@@ -224,4 +224,4 @@ def render_sector_page(
         with st.expander("📌 Notas metodológicas de fonte de dados"):
             for a in assets:
                 if a.note:
-                    st.markdown(f"**{a.name}** — {a.note}")
+                    st.markdown(f"**{a.name}** — {a.note}") 
