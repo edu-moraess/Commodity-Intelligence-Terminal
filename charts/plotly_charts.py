@@ -46,7 +46,8 @@ def candlestick_chart(df: pd.DataFrame, title: str = "") -> go.Figure:
 
 def line_chart(series_dict: dict[str, pd.Series], title: str = "", y_title: str = "") -> go.Figure:
     fig = go.Figure()
-    palette = [THEME["accent"], THEME["positive"], THEME["warning"], THEME["negative"], "#9b8afb", "#f7c948"]
+    palette = [THEME["accent"], THEME["positive"], THEME["warning"], THEME["negative"],
+               THEME["chart_extra_1"], THEME["chart_extra_2"]]
     for i, (name, s) in enumerate(series_dict.items()):
         fig.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name=name,
                                   line=dict(color=palette[i % len(palette)], width=1.8)))
@@ -72,13 +73,13 @@ def fan_chart(fan_df: pd.DataFrame, last_price: float, last_date: pd.Timestamp,
     fig.add_trace(go.Scatter(
         x=list(fan_df.index) + list(fan_df.index[::-1]),
         y=list(fan_df["p90"]) + list(fan_df["p10"][::-1]),
-        fill="toself", fillcolor="rgba(63,177,206,0.12)",
+        fill="toself", fillcolor="rgba(201,162,39,0.12)",
         line=dict(color="rgba(0,0,0,0)"), name="Intervalo P10–P90", showlegend=True,
     ))
     fig.add_trace(go.Scatter(
         x=list(fan_df.index) + list(fan_df.index[::-1]),
         y=list(fan_df["p75"]) + list(fan_df["p25"][::-1]),
-        fill="toself", fillcolor="rgba(63,177,206,0.22)",
+        fill="toself", fillcolor="rgba(201,162,39,0.22)",
         line=dict(color="rgba(0,0,0,0)"), name="Intervalo P25–P75", showlegend=True,
     ))
     fig.add_trace(go.Scatter(x=fan_df.index, y=fan_df["p50"], mode="lines",
@@ -196,12 +197,12 @@ def regime_probability_chart(state_probs: pd.DataFrame,
     fig.add_trace(go.Scatter(
         x=state_probs.index, y=state_probs["prob_baixa_vol"], mode="lines",
         name="P(Baixa Volatilidade)", stackgroup="one",
-        line=dict(width=0.5, color=THEME["positive"]), fillcolor="rgba(62,207,142,0.55)",
+        line=dict(width=0.5, color=THEME["positive"]), fillcolor="rgba(31,179,122,0.55)",
     ))
     fig.add_trace(go.Scatter(
         x=state_probs.index, y=state_probs["prob_alta_vol"], mode="lines",
         name="P(Alta Volatilidade)", stackgroup="one",
-        line=dict(width=0.5, color=THEME["negative"]), fillcolor="rgba(229,72,77,0.55)",
+        line=dict(width=0.5, color=THEME["negative"]), fillcolor="rgba(230,72,76,0.55)",
     ))
     fig.update_yaxes(title_text="Probabilidade", range=[0, 1], tickformat=".0%")
     return _apply_theme(fig, title, height=280)
@@ -260,7 +261,7 @@ def risk_return_scatter(df: pd.DataFrame, title: str = "Risco vs. Retorno") -> g
     """
     sector_colors = {
         "Energia": THEME["warning"], "Metais": THEME["accent"],
-        "Agricultura": THEME["positive"], "Brasil": "#9b8afb",
+        "Agricultura": THEME["positive"], "Brasil": THEME["chart_extra_1"],
     }
     fig = go.Figure()
     for sector in df["sector"].unique():
