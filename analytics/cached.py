@@ -9,10 +9,10 @@ from __future__ import annotations
 import streamlit as st
 import pandas as pd
 
-from config.settings import CACHE_TTL_SECONDS
+from config.settings import CACHE_TTL_COMPUTE
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_regime_summary(
     close: pd.Series,
     n_states: int = 2,
@@ -25,13 +25,13 @@ def cached_regime_summary(
     )
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_fit_garch11(close: pd.Series, lookback: int = 500) -> dict:
     from analytics.volatility import fit_garch11
     return fit_garch11(close, lookback=lookback)
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_fit_volatility_model(
     close: pd.Series,
     model: str = "GARCH",
@@ -41,7 +41,7 @@ def cached_fit_volatility_model(
     return fit_volatility_model(close, model=model, lookback=lookback)
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_select_best_volatility_model(
     close: pd.Series,
     lookback: int = 500,
@@ -53,7 +53,7 @@ def cached_select_best_volatility_model(
     )
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_compare_volatility_models(
     close: pd.Series,
     lookback: int = 500,
@@ -62,7 +62,7 @@ def cached_compare_volatility_models(
     return compare_volatility_models(close, lookback=lookback)
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_optimize_portfolio(
     price_panel: pd.DataFrame,
     method: str = "max_sharpe",
@@ -82,7 +82,7 @@ def cached_optimize_portfolio(
     )
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_walk_forward_backtest(
     panel: pd.DataFrame,
     method: str = "max_sharpe",
@@ -102,7 +102,7 @@ def cached_walk_forward_backtest(
     )
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
 def cached_compare_methods_advanced(
     panel: pd.DataFrame,
     window: int = 252,
