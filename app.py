@@ -71,7 +71,7 @@ st.markdown(f"""
     section[data-testid="stSidebar"] [data-testid*="NavLink"][aria-current="page"],
     section[data-testid="stSidebar"] li[aria-current="page"] a,
     section[data-testid="stSidebar"] a[aria-current="page"] {{
-        background-color: rgba(63,177,206,0.12) !important;
+        background-color: rgba(201,162,39,0.12) !important;
         border-left: 3px solid {THEME['accent']};
         border-radius: 4px;
     }}
@@ -104,6 +104,28 @@ st.markdown(f"""
         letter-spacing: 0.03em;
     }}
     div[data-testid="stMetric"] > div:nth-child(2) {{ font-size: 1.6rem !important; font-weight: 700 !important; }}
+
+    /* Delta do st.metric (badge verde/vermelho) — força a paleta customizada
+       em vez do verde/vermelho padrão do Streamlit, que ficava dessincronizado
+       do resto da UI. Streamlit não expõe uma API de tema para isso, então
+       sobrescrevemos via seletor de atributo + !important. Mantém a seta
+       (↑/↓) nativa, só recolore. */
+    div[data-testid="stMetricDelta"] {{
+        font-family: 'JetBrains Mono', 'Courier New', monospace;
+        font-weight: 600;
+    }}
+    div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Up"] {{
+        fill: {THEME['positive']} !important;
+    }}
+    div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Down"] {{
+        fill: {THEME['negative']} !important;
+    }}
+    div[data-testid="stMetricDelta"]:has(svg[data-testid="stMetricDeltaIcon-Up"]) {{
+        color: {THEME['positive']} !important;
+    }}
+    div[data-testid="stMetricDelta"]:has(svg[data-testid="stMetricDeltaIcon-Down"]) {{
+        color: {THEME['negative']} !important;
+    }}
 
     .stTabs [data-baseweb="tab-list"] {{
         gap: 4px;
