@@ -73,4 +73,4 @@ def download_dataframe(
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key=(key or f"dl_xlsx_{stem}") + "_xlsx",
                 use_container_width=True,
-            )
+            ) 
