@@ -112,16 +112,38 @@ FORECAST_HORIZONS = {
 }
 
 THEME = {
-    "background": "#0b0e14",
-    "surface": "#141822",
-    "surface_alt": "#181d29",
-    "border": "#232838",
-    "text": "#e6e8ee",
-    "text_muted": "#8b93a7",
-    "accent": "#3fb1ce",
-    "accent_amber": "#f0a500",
-    "positive": "#3ecf8e",
-    "negative": "#e5484d",
-    "warning": "#f5a623",
-    "ticker_bg": "#0d1117",
+    # Fundo quase-preto neutro (sem tingimento roxo/azul, mais "terminal" que "SaaS")
+    "background": "#0a0a0c",
+    "surface": "#131317",
+    "surface_alt": "#18181d",
+    "border": "#26262c",
+    "text": "#e8e8ea",
+    "text_muted": "#88888f",
+
+    # Accent principal: dourado/âmbar (identidade Bloomberg — troca o teal genérico
+    # que lê como template SaaS padrão). Usado em: tabs ativas, nav ativo, hover
+    # de cards/botões, bordas de destaque.
+    "accent": "#c9a227",
+    "accent_amber": "#c9a227",   # mantido por compatibilidade com código existente
+
+    # Verde/vermelho mais sóbrios (paleta Investing.com), menos saturados que
+    # o "candy green/red" genérico de dashboard.
+    "positive": "#1fb37a",
+    "negative": "#e6484c",
+
+    # Warning agora distinto do accent dourado (antes colidiam — os dois eram
+    # praticamente a mesma cor, gerando ambiguidade visual entre "destaque de UI"
+    # e "estado de alerta").
+    "warning": "#e0793c",
+
+    "ticker_bg": "#000000",
+
+    # Cores extras para gráficos multi-série (line_chart com >4 séries) e
+    # setores sem cor própria (ex: "Brasil" no scatter risco-retorno).
+    # Antes eram roxo/amarelo hardcoded (#9b8afb / #f7c948) — destoavam
+    # completamente da identidade dourado/preto. Agora ficam na mesma
+    # família tonal (steel-blue e bronze, ambos "frios/neutros" o
+    # suficiente pra não competir com o dourado do accent principal).
+    "chart_extra_1": "#5b8fa8",
+    "chart_extra_2": "#9c8552",
 }
