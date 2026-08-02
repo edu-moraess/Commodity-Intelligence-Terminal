@@ -26,10 +26,11 @@ from datetime import datetime, timezone, timedelta
 import streamlit as st
 import pandas as pd
 
-from config.settings import APP_NAME, APP_ICON, ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, THEME
+from config.settings import APP_NAME, APP_ICON, ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, ALL_ASSETS, THEME
 from data.data_manager import load_price_history_bulk
 from analytics import metrics
 from charts import plotly_charts as charts
+from utils.ticker_tape import render_ticker_tape
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="expanded")
 
@@ -160,6 +161,13 @@ st.markdown(f"""
     ::-webkit-scrollbar-thumb:hover {{ background: {THEME['text_muted']}; }}
 </style>
 """, unsafe_allow_html=True)
+
+# --------------------------------------------------------------------------
+# TICKER TAPE — roda em TODA página (antes de pg.run()), estilo Bloomberg/Investing
+# --------------------------------------------------------------------------
+with st.spinner("Carregando fita de cotações..."):
+    _ticker_price_data = load_price_history_bulk(ALL_ASSETS)
+render_ticker_tape(_ticker_price_data, ALL_ASSETS)
 
 
 # --------------------------------------------------------------------------
