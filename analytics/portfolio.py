@@ -18,6 +18,10 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+from utils.logger import get_logger
+
+logger = get_logger("portfolio")
+
 Method = Literal[
     "min_variance", "max_sharpe", "risk_parity",
     "max_diversification", "min_cvar", "equal_weight",
@@ -55,6 +59,7 @@ def min_variance_weights(cov: np.ndarray, long_only: bool = True) -> np.ndarray:
     res = minimize(obj, x0, method="SLSQP", bounds=bounds, constraints=cons,
                    options={"maxiter": 500, "ftol": 1e-12})
     if not res.success:
+        logger.warning("min_variance_weights: SLSQP não convergiu: %s", res.message)
         return x0
     w = np.maximum(res.x, 0) if long_only else res.x
     return w / w.sum()
@@ -76,6 +81,7 @@ def max_sharpe_weights(mu, cov, risk_free: float = 0.045, long_only: bool = True
     res = minimize(neg_sharpe, x0, method="SLSQP", bounds=bounds, constraints=cons,
                    options={"maxiter": 500, "ftol": 1e-12})
     if not res.success:
+        logger.warning("max_sharpe_weights: SLSQP não convergiu: %s", res.message)
         return x0
     w = np.maximum(res.x, 0) if long_only else res.x
     return w / w.sum()
@@ -100,6 +106,7 @@ def risk_parity_weights(cov: np.ndarray, long_only: bool = True) -> np.ndarray:
     res = minimize(obj, x0, method="SLSQP", bounds=bounds, constraints=cons,
                    options={"maxiter": 800, "ftol": 1e-14})
     if not res.success:
+        logger.warning("risk_parity_weights: SLSQP não convergiu (%s) — fallback 1/vol", res.message)
         vols = np.sqrt(np.diag(cov))
         w = 1.0 / np.maximum(vols, 1e-8)
         return w / w.sum()
@@ -125,6 +132,7 @@ def max_diversification_weights(cov: np.ndarray, long_only: bool = True) -> np.n
     res = minimize(neg_dr, x0, method="SLSQP", bounds=bounds, constraints=cons,
                    options={"maxiter": 500})
     if not res.success:
+        logger.warning("max_diversification_weights: SLSQP não convergiu: %s", res.message)
         return x0
     w = np.maximum(res.x, 0)
     return w / w.sum()
@@ -152,6 +160,7 @@ def min_cvar_weights(rets: pd.DataFrame, alpha: float = 0.95, long_only: bool = 
         res = minimize(cvar_obj, x0, method="SLSQP", bounds=bounds, constraints=cons,
                        options={"maxiter": 400, "ftol": 1e-10})
     if not res.success:
+        logger.warning("min_cvar_weights: SLSQP não convergiu: %s", res.message)
         return x0
     w = np.maximum(res.x, 0)
     return w / w.sum()
@@ -230,6 +239,10 @@ def optimize_portfolio(
     equity = (1 + port_rets).cumprod()
     max_dd = float((equity / equity.cummax() - 1).min()) if len(equity) else float("nan")
 
+    logger.info(
+        "optimize_portfolio OK: method=%s n=%d sharpe=%.3f vol=%.4f",
+        method, n, stats["sharpe"], stats["volatility"],
+    )
     return {
         "weights": pd.Series(w, index=names, name="weight"),
         "risk_contributions": pd.Series(rc, index=names, name="risk_contribution"),
@@ -263,5 +276,6 @@ def compare_methods(price_panel, window: int = 252, risk_free: float = 0.045) ->
                 "N ativos > 1%": int((res["weights"] > 0.01).sum()),
             })
         except Exception as exc:
+            logger.warning("compare_methods: método '%s' falhou: %s", m, exc)
             rows.append({"Método": m, "Erro": str(exc)[:50]})
     return pd.DataFrame(rows)
