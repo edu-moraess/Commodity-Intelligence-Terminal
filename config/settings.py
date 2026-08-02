@@ -100,7 +100,13 @@ MACRO_SERIES: dict[str, dict] = {
 APP_NAME = "Commodity Intelligence Terminal"
 APP_ICON = "🛢️"
 DEFAULT_LOOKBACK_DAYS = 730
-CACHE_TTL_SECONDS = 900          # 15 minutos (aumentado de 300)
+
+# TTLs de cache diferenciados (segundos)
+CACHE_TTL_PRICE = 300            # preços: 5 min — precisa ser mais fresco
+CACHE_TTL_MACRO = 3600           # macro FRED: 1 h — muda pouco intradía
+CACHE_TTL_COMPUTE = 900          # GARCH/HMM/otimização: 15 min
+CACHE_TTL_SECONDS = CACHE_TTL_COMPUTE  # alias retrocompatível
+
 RISK_FREE_RATE_ANNUAL = 0.045
 
 FORECAST_HORIZONS = {
