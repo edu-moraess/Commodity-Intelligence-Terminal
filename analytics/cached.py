@@ -113,3 +113,32 @@ def cached_compare_methods_advanced(
     return compare_methods_advanced(
         panel, window=window, risk_free=risk_free, long_only=long_only
     )
+
+
+# --------------------------------------------------------------------------
+# BACKTESTING DE VaR (analytics/backtesting.py) — faltavam no arquivo
+# original; Risk Analytics é uma das páginas mais pesadas (rolling_var_
+# forecast roda uma regressão/percentil por dia da janela) e ainda estava
+# sem cache nenhum.
+# --------------------------------------------------------------------------
+
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
+def cached_joint_backtest(
+    close: pd.Series,
+    confidence: float = 0.95,
+    window: int = 252,
+    method: str = "historical",
+) -> dict:
+    from analytics.backtesting import joint_backtest
+    return joint_backtest(close, confidence=confidence, window=window, method=method)
+
+
+@st.cache_data(ttl=CACHE_TTL_COMPUTE, show_spinner=False)
+def cached_full_backtest_report(
+    close: pd.Series,
+    confidence: float = 0.95,
+    window: int = 252,
+    method: str = "historical",
+) -> dict:
+    from analytics.backtesting import full_backtest_report
+    return full_backtest_report(close, confidence=confidence, window=window, method=method)
