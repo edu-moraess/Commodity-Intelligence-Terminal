@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from config.settings import ALL_ASSETS, RISK_FREE_RATE_ANNUAL, APP_NAME
+from config.settings import ALL_ASSETS, RISK_FREE_RATE_ANNUAL, APP_NAME, THEME
 from data.data_manager import load_price_history_bulk, build_price_panel
 from analytics import portfolio as port
 from analytics import portfolio_advanced as port_adv
@@ -233,7 +233,7 @@ if st.button("Calcular fronteira eficiente", type="primary"):
             y=frontier["return"],
             mode="lines+markers",
             name="Fronteira",
-            line=dict(color="#3fb1ce"),
+            line=dict(color=THEME["accent"]),
         ))
         for pt in method_points:
             fig.add_trace(go.Scatter(
