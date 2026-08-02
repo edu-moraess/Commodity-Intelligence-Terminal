@@ -15,6 +15,9 @@ import pandas as pd
 from typing import Any
 
 from analytics.metrics import daily_returns
+from utils.logger import get_logger
+
+logger = get_logger("regimes")
 
 
 def _gaussian_pdf(x: np.ndarray, mu: float, sigma: float) -> np.ndarray:
@@ -172,9 +175,11 @@ def select_best_hmm(
         try:
             fit = fit_hmm(returns, n_states=k)
             results.append(fit)
-        except Exception:
+        except Exception as exc:
+            logger.warning("select_best_hmm: n_states tentativa falhou: %s", exc)
             continue
     if not results:
+        logger.warning("select_best_hmm: nenhum candidato válido — fallback 2 estados")
         return fit_hmm(returns, n_states=2)
 
     if criterion == "aic":
@@ -229,6 +234,10 @@ def regime_summary(close: pd.Series, n_states: int = 2, n_iter: int = 100, auto_
     current_label = labels[current_regime]
     current_prob = float(state_probs_df.iloc[-1, current_regime])
 
+    logger.info(
+        "regime_summary OK: n_states=%s current=%s prob=%.2f ll=%.1f",
+        k, current_label, current_prob, result.get("log_likelihood", float("nan")),
+    )
     return {
         "n_states": k,
         "state_probs": state_probs_df,
