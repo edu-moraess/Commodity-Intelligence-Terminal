@@ -10,6 +10,8 @@ scikit-learn>=1.5,<2.0
 yfinance>=0.2.40,<0.3
 requests>=2.32,<3.0
 python-dotenv>=1.0,<2.0
+openpyxl>=3.1,<4.0  # BUGFIX: exigido por utils/export.py (botão de download Excel);
+                     # sem isso _to_excel_bytes() falha silenciosamente e só o CSV aparece
 
 # --- Quant / Econometria ---
 # arch é o único pacote desta seção com uso real no código hoje
