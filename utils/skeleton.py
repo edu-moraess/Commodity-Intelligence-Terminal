@@ -32,4 +32,4 @@ def skeleton_table_block(title: str = "Carregando tabela…", rows_hint: int = 6
 
 def skeleton_chart_block(title: str = "Carregando gráfico…") -> None:
     st.subheader(title)
-    st.info("Preparando visualização…", icon="⏳")
+    st.info("Preparando visualização…", icon="⏳") 
