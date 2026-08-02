@@ -8,12 +8,14 @@ rolling weights, diagnóstico de séries e comparação avançada de métodos.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
 from scipy.stats import zscore
 import warnings
 warnings.filterwarnings("ignore")
 
 from analytics import portfolio as port
+from utils.logger import get_logger
+
+logger = get_logger("portfolio_advanced")
 
 
 def validate_returns(returns: pd.DataFrame, z_threshold: float = 3.0) -> pd.DataFrame:
@@ -24,10 +26,8 @@ def validate_returns(returns: pd.DataFrame, z_threshold: float = 3.0) -> pd.Data
     mesmo recebendo uma Series como entrada. O código original fazia
     `outliers.index[outliers]`, o que quebrava com
     `AttributeError: 'numpy.ndarray' object has no attribute 'index'`
-    todo santa vez que a checkbox "Remover outliers" era marcada na UI.
-    Corrigido usando o índice da própria Series de dados (`col_data`),
-    que é sempre um pandas Series de verdade, independente do que
-    `zscore` devolver internamente.
+    toda vez que a checkbox "Remover outliers" era marcada na UI.
+    Corrigido usando o índice da própria Series de dados (`col_data`).
     """
     clean = returns.copy()
     for col in clean.columns:
@@ -38,9 +38,14 @@ def validate_returns(returns: pd.DataFrame, z_threshold: float = 3.0) -> pd.Data
         outlier_mask = np.abs(z) > z_threshold
         if outlier_mask.any():
             outlier_index = col_data.index[outlier_mask]
+            n_out = int(outlier_mask.sum())
+            logger.info(
+                "validate_returns: removendo %d outlier(s) em '%s' (z>%s)",
+                n_out, col, z_threshold,
+            )
             clean.loc[outlier_index, col] = np.nan
-            clean[col] = clean[col].interpolate(method='linear', limit=5)
-    return clean.dropna(axis=0, how='any')
+            clean[col] = clean[col].interpolate(method="linear", limit=5)
+    return clean.dropna(axis=0, how="any")
 
 
 def rolling_weights(
@@ -54,18 +59,28 @@ def rolling_weights(
     dates = panel.index
     weights_history = []
     for i in range(window, len(dates), rebalance_freq):
-        end_idx = min(i + rebalance_freq, len(dates))
         train = panel.iloc[i - window:i]
         try:
             res = port.optimize_portfolio(
-                train, method=method, window=window,
-                risk_free=risk_free, long_only=long_only
+                train,
+                method=method,
+                window=window,
+                risk_free=risk_free,
+                long_only=long_only,
             )
             w = res["weights"].reindex(panel.columns, fill_value=0.0)
             weights_history.append((dates[i], w))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Rebalanceamento falhou em %s (method=%s, window=%s): %s",
+                dates[i], method, window, exc,
+            )
     if not weights_history:
+        logger.warning(
+            "rolling_weights: nenhum rebalanceamento bem-sucedido "
+            "(method=%s, window=%s, rebalance_freq=%s, n_dates=%s)",
+            method, window, rebalance_freq, len(dates),
+        )
         return pd.DataFrame()
     df = pd.DataFrame({dt: w for dt, w in weights_history}).T
     df.index = pd.DatetimeIndex(df.index)
@@ -80,16 +95,23 @@ def walk_forward_backtest(
     long_only: bool = True,
     rebalance_freq: int = 21,
 ) -> dict:
-    weights_df = rolling_weights(panel, window, method, risk_free, long_only, rebalance_freq)
+    weights_df = rolling_weights(
+        panel, window, method, risk_free, long_only, rebalance_freq
+    )
     if weights_df.empty:
+        logger.warning(
+            "walk_forward_backtest: weights vazios — retornando equity vazia "
+            "(method=%s, window=%s)",
+            method, window,
+        )
         return {"equity_curve": pd.Series(dtype=float), "stats": {}}
-    
+
     rets = port._returns_matrix(panel, window=None)
     rets = rets.reindex(panel.index)
-    
+
     equity = pd.Series(1.0, index=rets.index)
     current_weights = None
-    
+
     for date in rets.index:
         if date in weights_df.index:
             current_weights = weights_df.loc[date]
@@ -99,24 +121,30 @@ def walk_forward_backtest(
         if pd.notna(daily_ret):
             equity.loc[date] = equity.shift(1).fillna(1.0).loc[date] * (1 + daily_ret)
 
-    # BUGFIX: `equity` acima já é o nível acumulado (equity_t = equity_{t-1}
-    # * (1 + retorno_t), calculado dentro do loop) — NÃO uma série de
-    # multiplicadores por período. O código original aplicava
-    # `.cumprod()` em cima disso, compondo valores que já eram níveis
-    # >1 entre si e explodindo exponencialmente (cheguei a ver retorno
-    # anualizado de "99 trilhões %" e drawdown de -99,9999% num teste
-    # com dados sintéticos — nenhum erro era lançado, só números
-    # absurdos exibidos como se fossem reais). Basta preencher os dias
-    # sem rebalanceamento ainda ativo (antes do primeiro `window`) com
-    # 1.0, sem recompor.
+    # BUGFIX: `equity` já é o nível acumulado — não aplicar .cumprod() de novo.
     equity = equity.fillna(1.0)
-    
+
     rets_series = equity.pct_change().dropna()
-    ann_return = (rets_series.mean() + 1) ** 252 - 1
-    ann_vol = rets_series.std() * np.sqrt(252)
+    if len(rets_series) == 0:
+        logger.warning("walk_forward_backtest: série de retornos vazia após backtest")
+        return {
+            "equity_curve": equity,
+            "stats": {},
+            "rebalance_dates": weights_df.index.tolist(),
+            "n_rebalances": len(weights_df),
+        }
+
+    ann_return = float((rets_series.mean() + 1) ** 252 - 1)
+    ann_vol = float(rets_series.std() * np.sqrt(252))
     sharpe = (ann_return - risk_free) / ann_vol if ann_vol > 0 else 0.0
-    max_dd = (equity / equity.cummax() - 1).min()
-    
+    max_dd = float((equity / equity.cummax() - 1).min())
+
+    logger.info(
+        "walk_forward_backtest OK: method=%s n_rebalances=%d "
+        "ann_return=%.4f ann_vol=%.4f sharpe=%.3f max_dd=%.4f",
+        method, len(weights_df), ann_return, ann_vol, sharpe, max_dd,
+    )
+
     return {
         "equity_curve": equity,
         "stats": {
@@ -148,14 +176,17 @@ def compare_methods_advanced(
     for label, m in methods.items():
         try:
             res = port.optimize_portfolio(
-                panel, method=m, window=window,
-                risk_free=risk_free, long_only=long_only
+                panel,
+                method=m,
+                window=window,
+                risk_free=risk_free,
+                long_only=long_only,
             )
             w = res["weights"]
             w_pos = w[w > 0.01]
-            hhi = (w ** 2).sum()
-            eq_weight = pd.Series(1/len(panel.columns), index=panel.columns)
-            turnover = (w - eq_weight).abs().sum() / 2
+            hhi = float((w ** 2).sum())
+            eq_weight = pd.Series(1 / len(panel.columns), index=panel.columns)
+            turnover = float((w - eq_weight).abs().sum() / 2)
             results.append({
                 "Método": label,
                 "Retorno": res["stats"]["expected_return"],
@@ -168,6 +199,7 @@ def compare_methods_advanced(
                 "Erro": "",
             })
         except Exception as e:
+            logger.warning("compare_methods_advanced: método '%s' falhou: %s", label, e)
             results.append({
                 "Método": label,
                 "Retorno": np.nan,
@@ -198,7 +230,11 @@ def asset_diagnostics(panel: pd.DataFrame, window: int = 252) -> pd.DataFrame:
             vol_window = np.nan
         if ytd_mask.any():
             ytd_prices = prices[ytd_mask]
-            ret_ytd = ytd_prices.iloc[-1] / ytd_prices.iloc[0] - 1 if len(ytd_prices) > 1 else np.nan
+            ret_ytd = (
+                ytd_prices.iloc[-1] / ytd_prices.iloc[0] - 1
+                if len(ytd_prices) > 1
+                else np.nan
+            )
         else:
             ret_ytd = np.nan
         dd = (prices / prices.cummax() - 1).min()
@@ -220,11 +256,9 @@ def asset_diagnostics(panel: pd.DataFrame, window: int = 252) -> pd.DataFrame:
     return pd.DataFrame(diag).set_index("Ativo")
 
 
-def get_window_data(panel: pd.DataFrame, option: str, custom_window: int = 252) -> pd.DataFrame:
-    """
-    Retorna o subset do painel conforme a opção de janela selecionada.
-    Opções: 'ytd', '63d', '252d', 'custom'
-    """
+def get_window_data(
+    panel: pd.DataFrame, option: str, custom_window: int = 252
+) -> pd.DataFrame:
     if option == "YTD (desde jan/2026)":
         ytd_start = pd.Timestamp(panel.index[-1].year, 1, 1)
         return panel[panel.index >= ytd_start]
@@ -232,5 +266,5 @@ def get_window_data(panel: pd.DataFrame, option: str, custom_window: int = 252) 
         return panel.iloc[-63:]
     elif option == "Personalizado":
         return panel.iloc[-custom_window:]
-    else:  # 'Últimos 252 pregões' (padrão)
+    else:
         return panel.iloc[-252:]
