@@ -114,11 +114,14 @@ FORECAST_HORIZONS = {
 THEME = {
     "background": "#0b0e14",
     "surface": "#141822",
+    "surface_alt": "#181d29",
     "border": "#232838",
     "text": "#e6e8ee",
     "text_muted": "#8b93a7",
     "accent": "#3fb1ce",
+    "accent_amber": "#f0a500",
     "positive": "#3ecf8e",
     "negative": "#e5484d",
     "warning": "#f5a623",
+    "ticker_bg": "#0d1117",
 }
