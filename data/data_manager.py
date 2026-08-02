@@ -5,11 +5,11 @@ Ponto único de acesso a dados de preço e macro no terminal.
 
 CHANGELOG v4.4.0:
 - Batch download do Yahoo Finance (1 chamada para N tickers) — reduz
-  tempo de carregamento de ~30-60s para ~3-5s.
+  tempo de carregamento de \~30-60s para \~3-5s.
 - Tickers inválidos conhecidos (ALI=F, TIO=F) pulam direto pro fallback
   sintético sem retry demorado.
 - Tratamento de MultiIndex do yfinance (colunas flat automaticamente).
-- Cache TTL alinhado com config.settings.CACHE_TTL_SECONDS.
+- Cache TTL diferenciado: PRICE (Yahoo) vs MACRO (FRED).
 - build_price_panel agora valida dados vazios e retorna DataFrame vazio
   com mensagem clara em vez de quebrar silenciosamente.
 """
@@ -21,7 +21,10 @@ import numpy as np
 import streamlit as st
 import logging
 
-from config.settings import Asset, DEFAULT_LOOKBACK_DAYS, CACHE_TTL_SECONDS
+from config.settings import (
+    Asset, DEFAULT_LOOKBACK_DAYS,
+    CACHE_TTL_PRICE, CACHE_TTL_MACRO, CACHE_TTL_SECONDS,
+)
 from data.sources.yahoo_finance import fetch_ohlcv, YahooFetchError
 from data.sources.fred import fetch_series, FredFetchError
 from data.sources.synthetic import generate_price_series, generate_macro_series
@@ -41,7 +44,7 @@ class PriceData:
 # CACHE + BATCH
 # --------------------------------------------------------------------------
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_PRICE, show_spinner=False)
 def _fetch_yahoo_batch(tickers: tuple[str, ...], period_days: int) -> dict[str, pd.DataFrame]:
     """
     Batch download de múltiplos tickers do Yahoo Finance em UMA única chamada.
@@ -72,11 +75,9 @@ def _fetch_yahoo_batch(tickers: tuple[str, ...], period_days: int) -> dict[str, 
 
     for ticker in tickers:
         try:
-            # Caso único: yf.download com 1 ticker retorna DataFrame flat
             if len(tickers) == 1:
                 df = data
             else:
-                # MultiIndex: acessa pelo ticker no nível 0
                 if ticker not in data.columns.get_level_values(0):
                     result[ticker] = pd.DataFrame()
                     continue
@@ -86,11 +87,9 @@ def _fetch_yahoo_batch(tickers: tuple[str, ...], period_days: int) -> dict[str, 
                 result[ticker] = pd.DataFrame()
                 continue
 
-            # Normaliza colunas — remove MultiIndex se sobrar
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
 
-            # Garante que temos as colunas mínimas
             required = {"Open", "High", "Low", "Close", "Volume"}
             available = set(df.columns)
             if not required.issubset(available):
@@ -173,7 +172,7 @@ def load_price_history_bulk(
 # API PÚBLICA — Macro
 # --------------------------------------------------------------------------
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_MACRO, show_spinner=False)
 def load_macro_series_cached(series_code: str, days: int) -> tuple[pd.Series, bool]:
     try:
         series = fetch_series(series_code)
