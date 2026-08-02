@@ -31,6 +31,9 @@ import pandas as pd
 from scipy.optimize import minimize
 
 from analytics.metrics import daily_returns
+from utils.logger import get_logger
+
+logger = get_logger("volatility")
 
 # Tentativa de importar arch (preferido). Fallback para implementação própria.
 try:
@@ -38,6 +41,7 @@ try:
     _HAS_ARCH = True
 except ImportError:
     _HAS_ARCH = False
+    # logger may not exist yet at import time if ordered differently — safe no-op
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +157,7 @@ def fit_volatility_model(
     """
     rets = daily_returns(close).tail(lookback).dropna()
     if len(rets) < 50:
-        raise ValueError("Série muito curta para ajuste de volatilidade (mín. ~50 obs).")
+        raise ValueError("Série muito curta para ajuste de volatilidade (mín. \~50 obs).")
 
     rets_pct = rets * 100  # escala % para melhor condicionamento numérico
 
@@ -163,6 +167,7 @@ def fit_volatility_model(
     if not _HAS_ARCH:
         # Fallback forçado para GARCH próprio se arch não disponível
         out = fit_garch11(close, lookback=lookback)
+        logger.warning("arch não instalado — fallback GARCH(1,1) próprio (pedido era %s)", model)
         out["warning"] = f"arch não instalado — fallback para GARCH(1,1) próprio (pedido era {model})"
         return out
 
@@ -171,6 +176,7 @@ def fit_volatility_model(
     except Exception as exc:
         # Fallback seguro
         out = fit_garch11(close, lookback=lookback)
+        logger.warning("Falha no ajuste %s: %s — fallback GARCH(1,1)", model, exc)
         out["warning"] = f"Falha no ajuste {model}: {exc}. Fallback GARCH(1,1)."
         return out
 
@@ -187,8 +193,8 @@ def fit_volatility_model(
             # Média da variância no horizonte h (aproximação)
             var_h = np.mean(variance_paths[:h])
             forecasts[f"forecast_{h}d_vol_annualized"] = float(np.sqrt(var_h) / 100 * np.sqrt(252))
-    except Exception:
-        # Fallback simples
+    except Exception as exc:
+        logger.warning("forecast multi-horizonte falhou (%s) — usando última var condicional", exc)
         last_var = (res.conditional_volatility.iloc[-1] / 100) ** 2
         for h in (1, 5, 10, 30):
             forecasts[f"forecast_{h}d_vol_annualized"] = float(np.sqrt(last_var) * np.sqrt(252))
@@ -241,6 +247,7 @@ def compare_volatility_models(
                 "Convergiu": fit.get("converged", False),
             })
         except Exception as exc:
+            logger.warning("compare_volatility_models: modelo falhou: %s", exc)
             rows.append({
                 "Modelo": m,
                 "Log-Likelihood": np.nan,
