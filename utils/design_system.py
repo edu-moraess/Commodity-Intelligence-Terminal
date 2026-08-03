@@ -173,7 +173,7 @@ section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] {
     width: 28px;
     height: 28px;
     border-radius: 7px;
-    background: linear-gradient(135deg, __ACCENT__ 0%, #2f6fd4 100%);
+    background: linear-gradient(135deg, __ACCENT__ 0%, #a8841c 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -328,7 +328,7 @@ div.stButton > button:hover {
 }
 div.stButton > button[kind="primary"],
 div.stButton > button[data-testid="baseButton-primary"] {
-    background: linear-gradient(180deg, __ACCENT__ 0%, #2f6fd4 100%) !important;
+    background: linear-gradient(180deg, __ACCENT__ 0%, #a8841c 100%) !important;
     color: #0a0a0c !important;
     border: none !important;
     font-weight: 600 !important;
@@ -391,11 +391,11 @@ hr {
 }
 
 div[data-testid="stPlotlyChart"] {
-    border: 1px solid __BORDER__;
+    border: 1px solid #1a1a1a;
     border-radius: 10px;
-    padding: 4px;
-    background-color: __SURFACE__;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    padding: 2px;
+    background-color: #000000;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
 }
 
 div[data-testid="stDownloadButton"] > button {
