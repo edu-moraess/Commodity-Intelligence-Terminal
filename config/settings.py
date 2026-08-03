@@ -11,7 +11,7 @@ CHANGELOG v4.4.0:
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List, Dict
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class Asset:
 # UNIVERSO DE ATIVOS
 # --------------------------------------------------------------------------
 
-ENERGY_ASSETS: list[Asset] = [
+ENERGY_ASSETS: List[Asset] = [
     Asset("BZ=F", "Brent Crude", "Energia", "USD/bbl"),
     Asset("CL=F", "WTI Crude", "Energia", "USD/bbl"),
     Asset("NG=F", "Natural Gas (Henry Hub)", "Energia", "USD/MMBtu"),
@@ -40,23 +40,21 @@ ENERGY_ASSETS: list[Asset] = [
           note="Proxy via ETF de mineradoras de urânio; substituir por UxC/Numerco quando disponível."),
 ]
 
-METALS_ASSETS: list[Asset] = [
+METALS_ASSETS: List[Asset] = [
     Asset("GC=F", "Ouro", "Metais", "USD/oz t"),
     Asset("SI=F", "Prata", "Metais", "USD/oz t"),
     Asset("HG=F", "Cobre", "Metais", "USD/lb"),
-    # FIX v4.4.0: ALI=F não existe no Yahoo Finance — força sintético
     Asset("ALI=F", "Alumínio", "Metais", "USD/t", source="synthetic",
           note="Futuro de alumínio não disponível no Yahoo Finance — dados sintéticos."),
     Asset("LIT", "Lítio (Global X Lithium ETF — proxy)", "Metais", "USD",
           note="Proxy via ETF; integrar Fastmarkets/Benchmark Mineral Intelligence para preço spot direto."),
-    # FIX v4.4.0: TIO=F (SGX Iron Ore) não existe no Yahoo Finance — força sintético
     Asset("TIO=F", "Minério de Ferro (SGX)", "Metais", "USD/t", source="synthetic",
           note="SGX Iron Ore não disponível no Yahoo Finance — dados sintéticos."),
     Asset("PICK", "Níquel & Zinco (iShares Metals & Mining — proxy)", "Metais", "USD",
           note="Sem contrato LME direto no Yahoo; proxy setorial até integração de fonte paga (LME Select)."),
 ]
 
-AGRI_ASSETS: list[Asset] = [
+AGRI_ASSETS: List[Asset] = [
     Asset("ZS=F", "Soja", "Agricultura", "USd/bu"),
     Asset("ZC=F", "Milho", "Agricultura", "USd/bu"),
     Asset("ZW=F", "Trigo", "Agricultura", "USd/bu"),
@@ -67,11 +65,10 @@ AGRI_ASSETS: list[Asset] = [
     Asset("OJ=F", "Suco de Laranja", "Agricultura", "USd/lb"),
 ]
 
-ALL_ASSETS: list[Asset] = ENERGY_ASSETS + METALS_ASSETS + AGRI_ASSETS
+ALL_ASSETS: List[Asset] = ENERGY_ASSETS + METALS_ASSETS + AGRI_ASSETS
 
-BRAZIL_ASSETS: list[Asset] = [
+BRAZIL_ASSETS: List[Asset] = [
     Asset("BZ=F", "Petróleo (Brasil exporta Brent-like)", "Brasil", "USD/bbl"),
-    # FIX v4.4.0: TIO=F forçado para synthetic
     Asset("TIO=F", "Minério de Ferro", "Brasil", "USD/t", source="synthetic"),
     Asset("ZS=F", "Soja", "Brasil", "USd/bu"),
     Asset("ZC=F", "Milho", "Brasil", "USd/bu"),
@@ -83,7 +80,7 @@ BRAZIL_ASSETS: list[Asset] = [
 # SÉRIES MACRO (FRED)
 # --------------------------------------------------------------------------
 
-MACRO_SERIES: dict[str, dict] = {
+MACRO_SERIES: Dict[str, dict] = {
     "DXY":        {"code": "DTWEXBGS", "name": "US Dollar Index (Trade-Weighted)"},
     "UST10Y":     {"code": "DGS10", "name": "US 10Y Treasury Yield"},
     "FEDFUNDS":   {"code": "FEDFUNDS", "name": "Fed Funds Rate"},
@@ -101,11 +98,10 @@ APP_NAME = "Commodity Intelligence Terminal"
 APP_ICON = "🛢️"
 DEFAULT_LOOKBACK_DAYS = 730
 
-# TTLs de cache diferenciados (segundos)
-CACHE_TTL_PRICE = 300            # preços: 5 min — precisa ser mais fresco
-CACHE_TTL_MACRO = 3600           # macro FRED: 1 h — muda pouco intradía
-CACHE_TTL_COMPUTE = 900          # GARCH/HMM/otimização: 15 min
-CACHE_TTL_SECONDS = CACHE_TTL_COMPUTE  # alias retrocompatível
+CACHE_TTL_PRICE = 300
+CACHE_TTL_MACRO = 3600
+CACHE_TTL_COMPUTE = 900
+CACHE_TTL_SECONDS = CACHE_TTL_COMPUTE
 
 RISK_FREE_RATE_ANNUAL = 0.045
 
@@ -118,38 +114,23 @@ FORECAST_HORIZONS = {
 }
 
 THEME = {
-    # Fundo quase-preto neutro (sem tingimento roxo/azul, mais "terminal" que "SaaS")
-    "background": "#0a0a0c",
-    "surface": "#131317",
-    "surface_alt": "#18181d",
-    "border": "#26262c",
-    "text": "#e8e8ea",
-    "text_muted": "#88888f",
+    # Quant desk / algo terminal
+    "background": "#080a0e",
+    "surface": "#0f1319",
+    "surface_alt": "#151b24",
+    "border": "#1e2733",
+    "text": "#e8eef6",
+    "text_muted": "#8b97a8",
 
-    # Accent principal: dourado/âmbar (identidade Bloomberg — troca o teal genérico
-    # que lê como template SaaS padrão). Usado em: tabs ativas, nav ativo, hover
-    # de cards/botões, bordas de destaque.
-    "accent": "#c9a227",
-    "accent_amber": "#c9a227",   # mantido por compatibilidade com código existente
+    "accent": "#4c9aff",
+    "accent_amber": "#4c9aff",
 
-    # Verde/vermelho mais sóbrios (paleta Investing.com), menos saturados que
-    # o "candy green/red" genérico de dashboard.
-    "positive": "#1fb37a",
-    "negative": "#e6484c",
+    "positive": "#00c853",
+    "negative": "#ff4d5a",
+    "warning": "#f0a030",
 
-    # Warning agora distinto do accent dourado (antes colidiam — os dois eram
-    # praticamente a mesma cor, gerando ambiguidade visual entre "destaque de UI"
-    # e "estado de alerta").
-    "warning": "#e0793c",
+    "ticker_bg": "#050608",
 
-    "ticker_bg": "#000000",
-
-    # Cores extras para gráficos multi-série (line_chart com >4 séries) e
-    # setores sem cor própria (ex: "Brasil" no scatter risco-retorno).
-    # Antes eram roxo/amarelo hardcoded (#9b8afb / #f7c948) — destoavam
-    # completamente da identidade dourado/preto. Agora ficam na mesma
-    # família tonal (steel-blue e bronze, ambos "frios/neutros" o
-    # suficiente pra não competir com o dourado do accent principal).
-    "chart_extra_1": "#5b8fa8",
-    "chart_extra_2": "#9c8552",
+    "chart_extra_1": "#7c9cbf",
+    "chart_extra_2": "#c4a35a",
 }
