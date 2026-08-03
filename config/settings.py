@@ -7,7 +7,7 @@ parâmetros de cache e constantes globais da aplicação.
 CHANGELOG v4.4.0:
 - Tickers sem liquidez no Yahoo (ALI=F, TIO=F) forçados para source="synthetic"
   evitando retry demorado e timeout na inicialização.
-- CACHE_TTL_SECONDS aumentado para 900s (15 min) para reduzir chamadas à API.
+- TTLs diferenciados: PRICE=300s, MACRO=3600s, COMPUTE=900s (alias CACHE_TTL_SECONDS).
 """
 
 from dataclasses import dataclass
