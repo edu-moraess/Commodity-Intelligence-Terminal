@@ -524,7 +524,6 @@ def render_sidebar_brand() -> None:
             "<div class='cit-logo-mark'>&#9670;</div>"
             "<div>"
             "<div class='cit-logo-title'>" + APP_NAME + "</div>"
-            "<div class='cit-logo-sub'>Institutional Quant Platform</div>"
             "</div>"
             "</div>"
             "<div class='cit-status-chip'>"
@@ -533,7 +532,6 @@ def render_sidebar_brand() -> None:
             "</div>",
             unsafe_allow_html=True,
         )
-        st.caption("Fontes: Yahoo Finance / FRED / fallback sintetico")
         if st.button("Atualizar dados", use_container_width=True, key="cit_refresh_cache"):
             st.cache_data.clear()
             st.rerun()
