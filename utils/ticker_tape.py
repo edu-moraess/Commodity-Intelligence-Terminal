@@ -60,8 +60,6 @@ def render_ticker_tape(price_data: dict[str, PriceData], assets: list) -> None:
     if not items_html:
         return
 
-    # Duplica a sequência de itens para o loop de scroll ficar contínuo
-    # (quando a 1ª cópia sai pela esquerda, a 2ª já está entrando).
     track_html = items_html + items_html
 
     st.markdown(f"""
