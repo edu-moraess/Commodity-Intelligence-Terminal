@@ -71,9 +71,12 @@ def render_ticker_tape(price_data: dict[str, PriceData], assets: list) -> None:
             border-bottom: 1px solid {THEME['border']};
             overflow: hidden;
             white-space: nowrap;
-            padding: 7px 0;
-            margin: -1rem -1rem 1rem -1rem;
-            width: calc(100% + 2rem);
+            padding: 5px 0;
+            margin: 0 0 0.65rem 0;
+            width: 100%;
+            border-radius: 6px;
+            position: relative;
+            z-index: 1;
         }}
         .tt-track {{
             display: inline-block;
@@ -91,9 +94,9 @@ def render_ticker_tape(price_data: dict[str, PriceData], assets: list) -> None:
             display: inline-flex;
             align-items: baseline;
             gap: 6px;
-            padding: 0 22px;
+            padding: 0 16px;
             font-family: 'JetBrains Mono', 'Courier New', monospace;
-            font-size: 0.82rem;
+            font-size: 0.75rem;
             border-right: 1px solid {THEME['border']};
         }}
         .tt-name {{
