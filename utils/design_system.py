@@ -12,6 +12,7 @@ NÃO altera lógica de negócio — apenas apresentação.
 """
 
 from __future__ import annotations
+from typing import Optional, Dict, List, Tuple, Any
 from datetime import datetime, timezone, timedelta
 
 import streamlit as st
@@ -42,6 +43,58 @@ html, body, [class*="css"] {{
     padding-left: 2rem !important;
     padding-right: 2rem !important;
     max-width: 1600px !important;
+}}
+
+/* ── Mobile / tablet: elimina vão preto e sidebar “presa” ── */
+@media (max-width: 991px) {{
+    .block-container {{
+        padding-top: 0.75rem !important;
+        padding-bottom: 1.5rem !important;
+        padding-left: 0.85rem !important;
+        padding-right: 0.85rem !important;
+        max-width: 100% !important;
+    }}
+    /* Não forçar min-width da sidebar no mobile (causa faixa preta) */
+    section[data-testid="stSidebar"] {{
+        min-width: 0 !important;
+    }}
+    /* Sidebar colapsada: zero largura reservada */
+    section[data-testid="stSidebar"][aria-expanded="false"] {{
+        width: 0 !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+    }}
+    /* Conteúdo principal ocupa 100% quando sidebar fechada */
+    section.main {{
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+    }}
+    div[data-testid="stAppViewContainer"] > .main {{
+        margin-left: 0 !important;
+    }}
+    /* Botão hamburger legível */
+    [data-testid="collapsedControl"] {{
+        background-color: {t['surface']} !important;
+        border: 1px solid {t['border']} !important;
+        border-radius: 8px !important;
+        color: {t['text']} !important;
+    }}
+    div[data-testid="stMetric"] {{
+        padding: 10px 12px !important;
+    }}
+    div[data-testid="stMetric"] > div:nth-child(2) {{
+        font-size: 1.15rem !important;
+    }}
+    h1 {{
+        font-size: 1.35rem !important;
+    }}
+}}
+
+@media (max-width: 600px) {{
+    .block-container {{
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+    }}
 }}
 
 /* ── Tipografia ─────────────────────────────────── */
@@ -475,7 +528,7 @@ def render_sidebar_brand() -> None:
 def page_header(
     title: str,
     subtitle: str = "",
-    chips: list[tuple[str, str]] | None = None,
+    chips: Optional[List[Tuple[str, str]]] = None,
 ) -> None:
     """
     Header institucional de página.
