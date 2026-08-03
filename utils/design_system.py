@@ -34,6 +34,12 @@ def inject_institutional_css() -> None:
     positive = t["positive"]
     negative = t["negative"]
 
+    def _hex_rgb(hx: str) -> str:
+        hx = hx.lstrip("#")
+        return "{},{},{}".format(int(hx[0:2], 16), int(hx[2:4], 16), int(hx[4:6], 16))
+
+    accent_rgb = _hex_rgb(accent)
+
     css = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -167,12 +173,12 @@ section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] {
     width: 28px;
     height: 28px;
     border-radius: 7px;
-    background: linear-gradient(135deg, __ACCENT__ 0%, #a8841c 100%);
+    background: linear-gradient(135deg, __ACCENT__ 0%, #2f6fd4 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.85rem;
-    box-shadow: 0 0 12px rgba(201,162,39,0.25);
+    box-shadow: 0 0 12px rgba(__ACCENT_RGB__,0.28);
 }
 .cit-sidebar-brand .cit-logo-title {
     font-size: 0.82rem;
@@ -239,7 +245,7 @@ section[data-testid="stSidebar"] [data-testid*="stSidebarNav"] a[aria-current="p
 section[data-testid="stSidebar"] nav a[aria-current="page"],
 section[data-testid="stSidebar"] [data-testid*="NavLink"][aria-current="page"],
 section[data-testid="stSidebar"] li[aria-current="page"] a {
-    background-color: rgba(201,162,39,0.10) !important;
+    background-color: rgba(__ACCENT_RGB__,0.12) !important;
     border-left: 3px solid __ACCENT__ !important;
     color: __ACCENT__ !important;
     font-weight: 600 !important;
@@ -254,7 +260,7 @@ div[data-testid="stMetric"] {
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 div[data-testid="stMetric"]:hover {
-    border-color: rgba(201,162,39,0.45);
+    border-color: rgba(__ACCENT_RGB__,0.50);
     box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 6px 20px rgba(0,0,0,0.25);
 }
 div[data-testid="stMetricLabel"] {
@@ -318,11 +324,11 @@ div.stButton > button {
 div.stButton > button:hover {
     border-color: __ACCENT__ !important;
     color: __ACCENT__ !important;
-    background-color: rgba(201,162,39,0.06) !important;
+    background-color: rgba(__ACCENT_RGB__,0.08) !important;
 }
 div.stButton > button[kind="primary"],
 div.stButton > button[data-testid="baseButton-primary"] {
-    background: linear-gradient(180deg, __ACCENT__ 0%, #a8841c 100%) !important;
+    background: linear-gradient(180deg, __ACCENT__ 0%, #2f6fd4 100%) !important;
     color: #0a0a0c !important;
     border: none !important;
     font-weight: 600 !important;
@@ -340,7 +346,7 @@ div[data-baseweb="base-input"] {
 }
 div[data-baseweb="select"]:hover > div,
 div[data-baseweb="input"]:hover > div {
-    border-color: rgba(201,162,39,0.4) !important;
+    border-color: rgba(__ACCENT_RGB__,0.45) !important;
 }
 
 div[data-testid="stDataFrame"] {
@@ -498,6 +504,7 @@ div[data-testid="stToolbar"] {
         .replace("__TEXT__", text)
         .replace("__MUTED__", text_muted)
         .replace("__ACCENT__", accent)
+        .replace("__ACCENT_RGB__", accent_rgb)
         .replace("__POSITIVE__", positive)
         .replace("__NEGATIVE__", negative)
     )
