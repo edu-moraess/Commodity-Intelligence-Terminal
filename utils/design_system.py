@@ -470,7 +470,7 @@ div[data-testid="stDownloadButton"] > button:hover {
 }
 ::-webkit-scrollbar-thumb:hover { background: __MUTED__; }
 
-#MainMenu { visibility: hidden; }
+/* MainMenu (3 pontos) permanece visivel para print / settings */
 footer { visibility: hidden; }
 header[data-testid="stHeader"] {
     background-color: __BG__ !important;
