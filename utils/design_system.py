@@ -38,33 +38,30 @@ html, body, [class*="css"] {{
     background-color: {t['background']} !important;
 }}
 .block-container {{
-    padding-top: 1.25rem !important;
-    padding-bottom: 2.5rem !important;
-    padding-left: 2rem !important;
-    padding-right: 2rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 2rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
     max-width: 1600px !important;
 }}
 
 /* ── Mobile / tablet: elimina vão preto e sidebar “presa” ── */
 @media (max-width: 991px) {{
     .block-container {{
-        padding-top: 0.75rem !important;
-        padding-bottom: 1.5rem !important;
-        padding-left: 0.85rem !important;
-        padding-right: 0.85rem !important;
+        padding-top: 0.4rem !important;
+        padding-bottom: 1.25rem !important;
+        padding-left: 0.7rem !important;
+        padding-right: 0.7rem !important;
         max-width: 100% !important;
     }}
-    /* Não forçar min-width da sidebar no mobile (causa faixa preta) */
     section[data-testid="stSidebar"] {{
         min-width: 0 !important;
     }}
-    /* Sidebar colapsada: zero largura reservada */
     section[data-testid="stSidebar"][aria-expanded="false"] {{
         width: 0 !important;
         min-width: 0 !important;
         margin: 0 !important;
     }}
-    /* Conteúdo principal ocupa 100% quando sidebar fechada */
     section.main {{
         margin-left: 0 !important;
         padding-left: 0 !important;
@@ -72,7 +69,6 @@ html, body, [class*="css"] {{
     div[data-testid="stAppViewContainer"] > .main {{
         margin-left: 0 !important;
     }}
-    /* Botão hamburger legível */
     [data-testid="collapsedControl"] {{
         background-color: {t['surface']} !important;
         border: 1px solid {t['border']} !important;
@@ -128,7 +124,6 @@ p, .stMarkdown, label {{
     font-size: 0.78rem !important;
 }}
 
-/* Números monoespaçados */
 div[data-testid="stMetricValue"],
 div[data-testid="stDataFrame"],
 .cit-mono {{
@@ -142,13 +137,19 @@ section[data-testid="stSidebar"] {{
     min-width: 260px !important;
 }}
 section[data-testid="stSidebar"] > div {{
-    padding-top: 0.75rem !important;
+    padding-top: 0.15rem !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stSidebarNav"] {{
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}}
+section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] {{
+    padding-top: 0.15rem !important;
 }}
 
-/* Brand block */
 .cit-sidebar-brand {{
-    padding: 0.5rem 0.85rem 0.85rem 0.85rem;
-    margin-bottom: 0.25rem;
+    padding: 0.35rem 0.75rem 0.5rem 0.75rem !important;
+    margin-bottom: 0.1rem !important;
 }}
 .cit-sidebar-brand .cit-logo-row {{
     display: flex;
@@ -182,11 +183,11 @@ section[data-testid="stSidebar"] > div {{
     margin-top: 1px;
 }}
 .cit-sidebar-meta {{
-    padding: 0.6rem 0.85rem;
+    padding: 0.5rem 0.85rem;
     font-size: 0.7rem;
     color: {t['text_muted']};
     border-top: 1px solid {t['border']};
-    margin-top: 0.5rem;
+    margin-top: 0.4rem;
 }}
 .cit-status-chip {{
     display: inline-flex;
@@ -210,7 +211,6 @@ section[data-testid="stSidebar"] > div {{
     box-shadow: 0 0 6px {t['positive']};
 }}
 
-/* Nav links */
 section[data-testid="stSidebar"] [data-testid*="stSidebarNav"] a,
 section[data-testid="stSidebar"] nav a,
 section[data-testid="stSidebar"] [data-testid*="NavLink"] {{
@@ -458,7 +458,6 @@ div[data-testid="stDownloadButton"] > button:hover {{
     font-weight: 600;
 }}
 
-/* ── Section label ──────────────────────────────── */
 .cit-section-label {{
     font-size: 0.7rem;
     font-weight: 600;
@@ -468,7 +467,6 @@ div[data-testid="stDownloadButton"] > button:hover {{
     margin: 1.25rem 0 0.55rem 0;
 }}
 
-/* ── Scrollbar discreta ─────────────────────────── */
 ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
 ::-webkit-scrollbar-track {{ background: {t['background']}; }}
 ::-webkit-scrollbar-thumb {{
@@ -477,11 +475,23 @@ div[data-testid="stDownloadButton"] > button:hover {{
 }}
 ::-webkit-scrollbar-thumb:hover {{ background: {t['text_muted']}; }}
 
-/* ── Hide Streamlit chrome ──────────────────────── */
 #MainMenu {{ visibility: hidden; }}
 footer {{ visibility: hidden; }}
 header[data-testid="stHeader"] {{
-    background: transparent !important;
+    background-color: {t['background']} !important;
+    border-bottom: 1px solid {t['border']} !important;
+}}
+div[data-testid="stAppViewContainer"] {{
+    background-color: {t['background']} !important;
+}}
+section.main > div:first-child {{
+    padding-top: 0 !important;
+}}
+div[data-testid="stToolbar"] {{
+    background-color: {t['background']} !important;
+}}
+.stApp > header {{
+    min-height: 2.5rem !important;
 }}
 </style>
         """,
@@ -518,7 +528,6 @@ def render_sidebar_brand() -> None:
             f"""
 <div class="cit-sidebar-meta">
   <div>{now_brasilia.strftime('%d/%m/%Y · %H:%M')} BRT</div>
-  <div style="margin-top:4px;opacity:0.7">v4.5 · CIT Terminal</div>
 </div>
             """,
             unsafe_allow_html=True,
@@ -530,11 +539,7 @@ def page_header(
     subtitle: str = "",
     chips: Optional[List[Tuple[str, str]]] = None,
 ) -> None:
-    """
-    Header institucional de página.
-
-    chips: lista de (label, value), ex. [("Fonte", "Yahoo"), ("Janela", "252d")]
-    """
+    """Header institucional de página."""
     chips = chips or []
     chips_html = "".join(
         f'<span class="cit-chip"><strong>{lab}</strong>&nbsp;{val}</span>'
@@ -547,12 +552,4 @@ def page_header(
     <div class="cit-title">{title}</div>
     {f'<div class="cit-subtitle">{subtitle}</div>' if subtitle else ''}
   </div>
-  <div class="cit-meta">{chips_html}</div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def section_label(text: str) -> None:
-    st.markdown(f'<div class="cit-section-label">{text}</div>', unsafe_allow_html=True)
+  <div class="cit
