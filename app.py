@@ -31,158 +31,14 @@ from data.data_manager import load_price_history_bulk
 from analytics import metrics
 from charts import plotly_charts as charts
 from utils.ticker_tape import render_ticker_tape
+from utils.design_system import inject_institutional_css, render_sidebar_brand
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="expanded")
 
 # --------------------------------------------------------------------------
-# TEMA ESCURO INSTITUCIONAL (CSS)
+# DESIGN SYSTEM INSTITUCIONAL (CSS)
 # --------------------------------------------------------------------------
-st.markdown(f"""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-    html, body, [class*="css"] {{
-        font-family: 'Inter', -apple-system, sans-serif;
-    }}
-
-    .stApp {{ background-color: {THEME['background']}; }}
-
-    h1 {{
-        color: {THEME['text']} !important;
-        font-weight: 700 !important;
-        letter-spacing: -0.02em;
-    }}
-    h2, h3 {{
-        color: {THEME['text']} !important;
-        font-weight: 600 !important;
-        letter-spacing: -0.01em;
-    }}
-    p, .stMarkdown, .stCaption {{ color: {THEME['text']}; }}
-    [data-testid="stCaptionContainer"] {{ color: {THEME['text_muted']} !important; }}
-
-    div[data-testid="stMetricValue"], div[data-testid="stDataFrame"] {{
-        font-family: 'JetBrains Mono', 'Courier New', monospace;
-    }}
-
-    section[data-testid="stSidebar"] {{
-        background-color: {THEME['surface']};
-        border-right: 1px solid {THEME['border']};
-    }}
-    section[data-testid="stSidebar"] [data-testid*="NavLink"][aria-current="page"],
-    section[data-testid="stSidebar"] li[aria-current="page"] a,
-    section[data-testid="stSidebar"] a[aria-current="page"] {{
-        background-color: rgba(201,162,39,0.12) !important;
-        border-left: 3px solid {THEME['accent']};
-        border-radius: 4px;
-    }}
-    section[data-testid="stSidebar"] [data-testid*="NavLink"],
-    section[data-testid="stSidebar"] nav a {{
-        border-left: 3px solid transparent;
-        border-radius: 4px;
-        transition: background-color 0.15s ease;
-    }}
-    section[data-testid="stSidebar"] [data-testid*="NavLink"]:hover,
-    section[data-testid="stSidebar"] nav a:hover {{
-        background-color: rgba(255,255,255,0.04) !important;
-    }}
-
-    div[data-testid="stMetric"] {{
-        background-color: {THEME['surface']};
-        border: 1px solid {THEME['border']};
-        border-radius: 10px;
-        padding: 16px 18px;
-        transition: border-color 0.15s ease, transform 0.1s ease;
-    }}
-    div[data-testid="stMetric"]:hover {{
-        border-color: {THEME['accent']};
-    }}
-    div[data-testid="stMetricLabel"] {{
-        color: {THEME['text_muted']} !important;
-        font-size: 0.82rem !important;
-        font-weight: 500 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-    }}
-    div[data-testid="stMetric"] > div:nth-child(2) {{ font-size: 1.6rem !important; font-weight: 700 !important; }}
-
-    /* Delta do st.metric (badge verde/vermelho) — força a paleta customizada
-       em vez do verde/vermelho padrão do Streamlit, que ficava dessincronizado
-       do resto da UI. Streamlit não expõe uma API de tema para isso, então
-       sobrescrevemos via seletor de atributo + !important. Mantém a seta
-       (↑/↓) nativa, só recolore. */
-    div[data-testid="stMetricDelta"] {{
-        font-family: 'JetBrains Mono', 'Courier New', monospace;
-        font-weight: 600;
-    }}
-    div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Up"] {{
-        fill: {THEME['positive']} !important;
-    }}
-    div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Down"] {{
-        fill: {THEME['negative']} !important;
-    }}
-    div[data-testid="stMetricDelta"]:has(svg[data-testid="stMetricDeltaIcon-Up"]) {{
-        color: {THEME['positive']} !important;
-    }}
-    div[data-testid="stMetricDelta"]:has(svg[data-testid="stMetricDeltaIcon-Down"]) {{
-        color: {THEME['negative']} !important;
-    }}
-
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 4px;
-        border-bottom: 1px solid {THEME['border']};
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        color: {THEME['text_muted']};
-        font-weight: 500;
-        padding: 8px 16px;
-    }}
-    .stTabs [aria-selected="true"] {{
-        color: {THEME['accent']} !important;
-        font-weight: 600;
-        border-bottom: 2px solid {THEME['accent']} !important;
-    }}
-
-    div[data-testid="stDataFrame"] {{
-        border: 1px solid {THEME['border']};
-        border-radius: 8px;
-        overflow: hidden;
-    }}
-
-    div[data-testid="stExpander"] {{
-        border: 1px solid {THEME['border']} !important;
-        border-radius: 8px !important;
-        background-color: rgba(255,255,255,0.015);
-    }}
-    div[data-testid="stExpander"] summary {{
-        font-weight: 500;
-        color: {THEME['text']};
-    }}
-
-    .stButton button {{
-        border-radius: 6px;
-        border: 1px solid {THEME['border']};
-        font-weight: 500;
-        transition: all 0.15s ease;
-    }}
-    .stButton button:hover {{
-        border-color: {THEME['accent']};
-        color: {THEME['accent']};
-    }}
-
-    .stSelectbox [data-baseweb="select"], .stTextInput input {{
-        border-radius: 6px;
-    }}
-
-    div[data-testid="stAlert"] {{ border-radius: 8px; }}
-
-    hr {{ border-color: {THEME['border']} !important; opacity: 0.6; }}
-
-    ::-webkit-scrollbar {{ width: 8px; height: 8px; }}
-    ::-webkit-scrollbar-track {{ background: {THEME['background']}; }}
-    ::-webkit-scrollbar-thumb {{ background: {THEME['border']}; border-radius: 4px; }}
-    ::-webkit-scrollbar-thumb:hover {{ background: {THEME['text_muted']}; }}
-</style>
-""", unsafe_allow_html=True)
+inject_institutional_css()
 
 # --------------------------------------------------------------------------
 # TICKER TAPE — roda em TODA página (antes de pg.run()), estilo Bloomberg/Investing
@@ -281,20 +137,9 @@ def render_home() -> None:
 
 
 # --------------------------------------------------------------------------
-# SIDEBAR
+# SIDEBAR BRAND (visível em todas as páginas)
 # --------------------------------------------------------------------------
-with st.sidebar:
-    st.markdown(f"## {APP_ICON} {APP_NAME}")
-    st.caption("Institutional Quant Research Platform")
-    st.divider()
-    st.caption("Fontes: Yahoo Finance · FRED · fallback sintético automático")
-    if st.button("🔄 Atualizar dados (limpar cache)"):
-        st.cache_data.clear()
-        st.rerun()
-    brasilia_tz = timezone(timedelta(hours=-3))
-    now_brasilia = datetime.now(brasilia_tz)
-    st.caption(f"📅 {now_brasilia.strftime('%d/%m/%Y %H:%M')} (Brasília)")
-    st.divider()
+render_sidebar_brand()
 
 # --------------------------------------------------------------------------
 # NAVEGAÇÃO EXPLÍCITA (inclui Portfolio)
