@@ -14,7 +14,6 @@ import numpy as np
 
 from config.settings import THEME
 
-# MARGENS AJUSTADAS para eliminar espaço preto à direita
 _LAYOUT_DEFAULTS = dict(
     paper_bgcolor=THEME["surface"],
     plot_bgcolor=THEME["surface"],
@@ -122,7 +121,7 @@ def line_chart(series_dict: Dict[str, pd.Series], title: str = "", y_title: str 
     fig = go.Figure()
     palette = [
         THEME["accent"], THEME["positive"], THEME["warning"], THEME["negative"],
-        THEME.get("chart_extra_1", "#5b8fa8"), THEME.get("chart_extra_2", "#9c8552"),
+        THEME.get("chart_extra_1", "#7c9cbf"), THEME.get("chart_extra_2", "#c4a35a"),
     ]
     for i, (name, s) in enumerate(series_dict.items()):
         color = palette[i % len(palette)]
@@ -137,38 +136,38 @@ def line_chart(series_dict: Dict[str, pd.Series], title: str = "", y_title: str 
                 mode="markers",
                 marker=dict(size=8, color=color, line=dict(width=2, color=THEME["surface"])),
                 showlegend=False,
-                hovertemplate="%{y:.2f}<extra>Último</extra>",
+                hovertemplate="%{y:.2f}<extra>Ultimo</extra>",
             ))
     fig.update_yaxes(title_text=y_title)
     return _apply_theme(fig, title)
 
 
-def correlation_heatmap(corr_matrix: pd.DataFrame, title: str = "Matriz de Correlação") -> go.Figure:
+def correlation_heatmap(corr_matrix: pd.DataFrame, title: str = "Matriz de Correlacao") -> go.Figure:
     fig = go.Figure(data=go.Heatmap(
         z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index,
         colorscale=[[0, THEME["negative"]], [0.5, THEME["surface"]], [1, THEME["positive"]]],
         zmid=0, zmin=-1, zmax=1,
         text=corr_matrix.round(2).values, texttemplate="%{text}",
-        colorbar=dict(title="ρ"),
+        colorbar=dict(title="rho"),
     ))
     return _apply_theme(fig, title, height=max(360, 28 * len(corr_matrix)))
 
 
 def fan_chart(fan_df: pd.DataFrame, last_price: float, last_date: pd.Timestamp,
-              title: str = "Forecast — Cenários Probabilísticos") -> go.Figure:
+              title: str = "Forecast — Cenarios Probabilisticos") -> go.Figure:
     fig = go.Figure()
 
     fig.add_trace(go.Scatter(
         x=list(fan_df.index) + list(fan_df.index[::-1]),
         y=list(fan_df["p90"]) + list(fan_df["p10"][::-1]),
-        fill="toself", fillcolor="rgba(201,162,39,0.12)",
-        line=dict(color="rgba(0,0,0,0)"), name="Intervalo P10–P90", showlegend=True,
+        fill="toself", fillcolor="rgba(76,154,255,0.12)",
+        line=dict(color="rgba(0,0,0,0)"), name="Intervalo P10-P90", showlegend=True,
     ))
     fig.add_trace(go.Scatter(
         x=list(fan_df.index) + list(fan_df.index[::-1]),
         y=list(fan_df["p75"]) + list(fan_df["p25"][::-1]),
-        fill="toself", fillcolor="rgba(201,162,39,0.22)",
-        line=dict(color="rgba(0,0,0,0)"), name="Intervalo P25–P75", showlegend=True,
+        fill="toself", fillcolor="rgba(76,154,255,0.22)",
+        line=dict(color="rgba(0,0,0,0)"), name="Intervalo P25-P75", showlegend=True,
     ))
     fig.add_trace(go.Scatter(
         x=fan_df.index, y=fan_df["p50"], mode="lines",
@@ -176,7 +175,7 @@ def fan_chart(fan_df: pd.DataFrame, last_price: float, last_date: pd.Timestamp,
     ))
     fig.add_trace(go.Scatter(
         x=[last_date], y=[last_price], mode="markers",
-        marker=dict(color=THEME["text"], size=8), name="Preço Atual",
+        marker=dict(color=THEME["text"], size=8), name="Preco Atual",
     ))
     return _apply_theme(fig, title, height=480)
 
@@ -223,9 +222,6 @@ def histogram_chart(values, title: str = "", x_title: str = "") -> go.Figure:
 
 def var_breach_chart(returns: pd.Series, var_series: pd.Series, breaches: pd.Series,
                       title: str = "Backtesting de VaR — Retornos vs. Limite Previsto") -> go.Figure:
-    """Gráfico institucional padrão de backtest de VaR: retorno diário
-    (barras), limite de VaR previsto (linha, invertido para o mesmo eixo
-    de perdas) e marcadores nos dias de breach (exceção)."""
     idx = var_series.index
     rets_aligned = returns.reindex(idx)
 
@@ -235,11 +231,11 @@ def var_breach_chart(returns: pd.Series, var_series: pd.Series, breaches: pd.Ser
         for b in breaches.reindex(idx).fillna(False)
     ]
     fig.add_trace(go.Bar(
-        x=idx, y=rets_aligned, name="Retorno diário",
+        x=idx, y=rets_aligned, name="Retorno diario",
         marker_color=bar_colors, opacity=0.7,
     ))
     fig.add_trace(go.Scatter(
-        x=idx, y=-var_series, mode="lines", name="− VaR previsto",
+        x=idx, y=-var_series, mode="lines", name="- VaR previsto",
         line=dict(color=THEME["warning"], width=2.0, dash="dot"),
     ))
 
@@ -247,21 +243,18 @@ def var_breach_chart(returns: pd.Series, var_series: pd.Series, breaches: pd.Ser
     if len(breach_dates) > 0:
         fig.add_trace(go.Scatter(
             x=breach_dates, y=rets_aligned.reindex(breach_dates), mode="markers",
-            name="Exceções ({})".format(len(breach_dates)),
+            name="Excecoes ({})".format(len(breach_dates)),
             marker=dict(
                 color=THEME["negative"], size=7, symbol="x",
                 line=dict(width=1, color="white"),
             ),
         ))
-    fig.update_yaxes(title_text="Retorno diário", tickformat=".1%")
+    fig.update_yaxes(title_text="Retorno diario", tickformat=".1%")
     return _apply_theme(fig, title, height=420)
 
 
 def regime_price_chart(close: pd.Series, viterbi_states: pd.Series,
-                        title: str = "Preço com Regimes de Volatilidade (HMM)") -> go.Figure:
-    """Preço com faixas verticais sombreadas indicando o regime (0 = baixa
-    vol, 1 = alta vol) identificado pelo Viterbi — leitura visual imediata
-    de quando o mercado esteve "calmo" vs "estressado"."""
+                        title: str = "Preco com Regimes de Volatilidade (HMM)") -> go.Figure:
     fig = go.Figure()
 
     states = viterbi_states.reindex(close.index).ffill().bfill()
@@ -288,7 +281,7 @@ def regime_price_chart(close: pd.Series, viterbi_states: pd.Series,
 
     fig.add_trace(go.Scatter(
         x=close.index, y=close.values, mode="lines",
-        line=dict(color=THEME["accent"], width=2.2), name="Preço",
+        line=dict(color=THEME["accent"], width=2.2), name="Preco",
     ))
     layout = dict(_LAYOUT_DEFAULTS)
     layout["shapes"] = shapes
@@ -299,19 +292,16 @@ def regime_price_chart(close: pd.Series, viterbi_states: pd.Series,
 
 def regime_probability_chart(state_probs: pd.DataFrame,
                               title: str = "Probabilidade Suavizada de Regime") -> go.Figure:
-    """Área empilhada com P(baixa vol) e P(alta vol) ao longo do tempo —
-    complementa o regime_price_chart mostrando a confiança do modelo,
-    não só a classificação binária (Viterbi)."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=state_probs.index, y=state_probs["prob_baixa_vol"], mode="lines",
         name="P(Baixa Volatilidade)", stackgroup="one",
-        line=dict(width=0.5, color=THEME["positive"]), fillcolor="rgba(31,179,122,0.55)",
+        line=dict(width=0.5, color=THEME["positive"]), fillcolor="rgba(0,200,83,0.45)",
     ))
     fig.add_trace(go.Scatter(
         x=state_probs.index, y=state_probs["prob_alta_vol"], mode="lines",
         name="P(Alta Volatilidade)", stackgroup="one",
-        line=dict(width=0.5, color=THEME["negative"]), fillcolor="rgba(230,72,76,0.55)",
+        line=dict(width=0.5, color=THEME["negative"]), fillcolor="rgba(255,77,90,0.45)",
     ))
     fig.update_yaxes(title_text="Probabilidade", range=[0, 1], tickformat=".0%")
     return _apply_theme(fig, title, height=300)
@@ -319,9 +309,6 @@ def regime_probability_chart(state_probs: pd.DataFrame,
 
 def spread_chart(spread: pd.Series, mean: float, std: float,
                   title: str = "Spread do Par (Engle-Granger)") -> go.Figure:
-    """Spread estático (resíduo da regressão de cointegração) com a média
-    histórica e bandas de ±1σ/±2σ — leitura visual de quando o spread
-    está "esticado" o suficiente para sinalizar reversão à média."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=spread.index, y=spread.values, mode="lines",
@@ -343,19 +330,16 @@ def spread_chart(spread: pd.Series, mean: float, std: float,
 
 
 def kalman_beta_chart(beta_series: pd.Series, static_beta: Optional[float] = None,
-                       title: str = "Hedge Ratio Dinâmico (Kalman Filter)") -> go.Figure:
-    """Hedge ratio (beta) variando no tempo via Kalman Filter, com
-    referência opcional ao hedge ratio estático (Engle-Granger, full
-    sample) para comparação direta."""
+                       title: str = "Hedge Ratio Dinamico (Kalman Filter)") -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=beta_series.index, y=beta_series.values, mode="lines",
-        line=dict(color=THEME["accent"], width=2.2), name="β (Kalman, dinâmico)",
+        line=dict(color=THEME["accent"], width=2.2), name="beta (Kalman, dinamico)",
     ))
     if static_beta is not None:
         fig.add_hline(y=static_beta, line=dict(color=THEME["warning"], width=1.4, dash="dash"))
         fig.add_annotation(
-            text="β estático (EG) = {:.3f}".format(static_beta),
+            text="beta estatico (EG) = {:.3f}".format(static_beta),
             xref="paper", x=0.01, y=static_beta, yref="y",
             showarrow=False, font=dict(color=THEME["warning"], size=11),
         )
@@ -363,8 +347,6 @@ def kalman_beta_chart(beta_series: pd.Series, static_beta: Optional[float] = Non
 
 
 def zscore_chart(z_score: pd.Series, title: str = "Z-Score do Spread — Sinal de Pairs Trading") -> go.Figure:
-    """Z-score do spread do Kalman Filter com zonas de entrada (|z|>2) e
-    saída (z≈0) — o sinal clássico de arbitragem estatística em pairs."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=z_score.index, y=z_score.values, mode="lines",
@@ -387,15 +369,11 @@ def zscore_chart(z_score: pd.Series, title: str = "Z-Score do Spread — Sinal d
 
 
 def risk_return_scatter(df: pd.DataFrame, title: str = "Risco vs. Retorno") -> go.Figure:
-    """Bubble chart institucional padrão: eixo X = volatilidade anualizada,
-    eixo Y = Sharpe (ou retorno), tamanho da bolha = |momentum|, cor por
-    setor. `df` precisa ter as colunas: name, sector, vol, sharpe, momentum.
-    """
     sector_colors = {
         "Energia": THEME["warning"],
         "Metais": THEME["accent"],
         "Agricultura": THEME["positive"],
-        "Brasil": THEME.get("chart_extra_1", "#5b8fa8"),
+        "Brasil": THEME.get("chart_extra_1", "#7c9cbf"),
     }
     fig = go.Figure()
     for sector in df["sector"].unique():
