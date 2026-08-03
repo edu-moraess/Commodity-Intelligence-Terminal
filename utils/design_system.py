@@ -281,11 +281,11 @@ div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Up"] {
 div[data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Down"] {
     fill: __NEGATIVE__ !important;
 }
-div[data-testid="stMetricDelta"] [data-testid="stMetricDeltaIcon-Up"] ~ div,
+div[data-testid="stMetricDelta"] [data-testid="stMetricDeltaIcon-Up"] \~ div,
 div[data-testid="stMetricDelta"]:has(svg[data-testid="stMetricDeltaIcon-Up"]) {
     color: __POSITIVE__ !important;
 }
-div[data-testid="stMetricDelta"] [data-testid="stMetricDeltaIcon-Down"] ~ div,
+div[data-testid="stMetricDelta"] [data-testid="stMetricDeltaIcon-Down"] \~ div,
 div[data-testid="stMetricDelta"]:has(svg[data-testid="stMetricDeltaIcon-Down"]) {
     color: __NEGATIVE__ !important;
 }
