@@ -6,6 +6,7 @@ from config.settings import ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, APP_NAME,
 from data.data_manager import load_price_history_bulk
 from analytics import metrics, signals
 from charts import plotly_charts as charts
+from utils.export import download_dataframe
 
 # --------------------------------------------------------------------------
 # CABEÇALHO
@@ -129,6 +130,7 @@ for tab, (sector_name, assets) in zip(tabs[:-1], ALL_SECTORS.items()):
 with tabs[-1]:
     df_all = build_table(ALL_ASSETS)
     st.dataframe(df_all.style.format(fmt, na_rep="-"), width='stretch', height=560)
+    download_dataframe(df_all, filename_stem="dashboard_global_todos_ativos")
 
 with st.expander("📐 Como as métricas são calculadas? (Fórmulas)"):
     st.markdown(r"**Retornos:** Variação percentual simples. **Volatilidade Anualizada:** $\sigma \times \sqrt{252}$. **Sharpe:** $(\bar{R} - R_f)/\sigma$. **Sortino:** $(\bar{R} - R_f)/\sigma_{\text{down}}$. **Max DD:** maior queda acumulada. **Calmar:** retorno acumulado / |MDD|. **Momentum:** média dos retornos de 1,3,6,12 meses. **Tendência:** compara SMA(20) com SMA(100).")
