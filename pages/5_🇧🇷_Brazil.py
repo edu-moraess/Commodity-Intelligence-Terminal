@@ -41,4 +41,4 @@ st.caption(
     "⚠️ Tabela de referência estática incluída apenas para contexto qualitativo — "
     "não deve ser usada como fonte de série temporal ou para decisões operacionais. "
     "Para dados oficiais e atualizados: comexstat.mdic.gov.br"
-)
+) 
