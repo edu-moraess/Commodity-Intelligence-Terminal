@@ -227,4 +227,4 @@ st.caption(
     "Modelos de tendência disponíveis (quando instalados): Linear, Ridge, Lasso, ElasticNet, "
     "RandomForest, XGBoost, LightGBM, CatBoost. "
     "Família GARCH requer pacote `arch`. Roadmap: VAR/VECM, Kalman, LSTM/TFT, SHAP."
-)
+) 
