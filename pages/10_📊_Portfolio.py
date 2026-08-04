@@ -2,11 +2,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from config.settings import ALL_ASSETS, RISK_FREE_RATE_ANNUAL, APP_NAME, THEME
+from config.settings import ALL_ASSETS, RISK_FREE_RATE_ANNUAL, APP_NAME
 from data.data_manager import load_price_history_bulk, build_price_panel
 from analytics import portfolio as port
 from analytics import portfolio_advanced as port_adv
+from analytics import cached
 from charts import plotly_charts as charts
+from utils.export import download_dataframe
 
 st.title("📊 Portfolio Optimization")
 st.caption(
@@ -120,7 +122,7 @@ if remove_outliers:
 
 # ---- Otimização ----
 try:
-    result = port.optimize_portfolio(
+    result = cached.cached_optimize_portfolio(
         panel, method=method, window=window, risk_free=rf, long_only=long_only
     )
 except Exception as exc:
@@ -162,28 +164,25 @@ st.dataframe(
     hide_index=True,
 )
 
-c_bar1, c_bar2 = st.columns(2)
-with c_bar1:
-    st.plotly_chart(
-        charts.bar_chart(
-            weights.index.tolist(),
-            weights.values.tolist(),
-            title="Pesos do Portfólio",
-            positive_negative=False,
-        ),
-        width="stretch",
-    )
-with c_bar2:
-    rc = result["risk_contributions"].sort_values(ascending=False)
-    st.plotly_chart(
-        charts.bar_chart(
-            rc.index.tolist(),
-            rc.values.tolist(),
-            title="Contribuição ao Risco",
-            positive_negative=False,
-        ),
-        width="stretch",
-    )
+st.plotly_chart(
+    charts.bar_chart(
+        weights.index.tolist(),
+        weights.values.tolist(),
+        title="Pesos do Portfólio",
+        positive_negative=False,
+    ),
+    width="stretch",
+)
+rc = result["risk_contributions"].sort_values(ascending=False)
+st.plotly_chart(
+    charts.bar_chart(
+        rc.index.tolist(),
+        rc.values.tolist(),
+        title="Contribuição ao Risco",
+        positive_negative=False,
+    ),
+    width="stretch",
+)
 
 st.divider()
 
@@ -215,7 +214,7 @@ if st.button("Calcular fronteira eficiente", type="primary"):
         method_points = []
         for lab, mid in method_labels.items():
             try:
-                r = port.optimize_portfolio(
+                r = cached.cached_optimize_portfolio(
                     panel, method=mid, window=window, risk_free=rf, long_only=long_only
                 )
                 method_points.append({
@@ -226,32 +225,7 @@ if st.button("Calcular fronteira eficiente", type="primary"):
             except Exception:
                 continue
 
-        import plotly.graph_objects as go
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=frontier["volatility"],
-            y=frontier["return"],
-            mode="lines+markers",
-            name="Fronteira",
-            line=dict(color=THEME["accent"]),
-        ))
-        for pt in method_points:
-            fig.add_trace(go.Scatter(
-                x=[pt["vol"]],
-                y=[pt["ret"]],
-                mode="markers+text",
-                name=pt["method"],
-                text=[pt["method"]],
-                textposition="top center",
-                marker=dict(size=12),
-            ))
-        fig.update_layout(
-            title="Fronteira Eficiente (anualizada)",
-            xaxis_title="Volatilidade",
-            yaxis_title="Retorno Esperado",
-            template="plotly_dark",
-            height=480,
-        )
+        fig = charts.efficient_frontier_chart(frontier, method_points)
         st.plotly_chart(fig, width="stretch")
 
 st.divider()
@@ -260,7 +234,7 @@ st.divider()
 st.subheader("Comparação Avançada de Métodos")
 if st.button("Comparar todos os métodos (com diagnóstico)", key="compare_adv"):
     with st.spinner("Otimizando todos os métodos..."):
-        cmp_df = port_adv.compare_methods_advanced(
+        cmp_df = cached.cached_compare_methods_advanced(
             panel, window=window, risk_free=rf, long_only=long_only
         )
     if cmp_df is not None and not cmp_df.empty:
@@ -273,6 +247,7 @@ if st.button("Comparar todos os métodos (com diagnóstico)", key="compare_adv")
             "Turnover (vs Equal)": "{:.2%}",
         }
         st.dataframe(cmp_df.style.format(fmt, na_rep="—"), width="stretch")
+        download_dataframe(cmp_df, filename_stem="portfolio_comparacao_metodos")
     else:
         st.warning("Comparação sem resultados.")
 
@@ -282,9 +257,8 @@ st.divider()
 with st.expander("📊 Backtest Out-of-Sample (Walk-Forward)"):
     st.caption("Rebalanceamento mensal (21 pregões) – avalia o desempenho real da estratégia fora da amostra.")
     if st.button("Rodar Walk-Forward Backtest", key="wf_btn"):
-        from analytics.portfolio_advanced import walk_forward_backtest
         with st.spinner("Executando walk-forward (isso pode levar alguns segundos)..."):
-            wf = walk_forward_backtest(
+            wf = cached.cached_walk_forward_backtest(
                 panel, method=method, window=window,
                 risk_free=rf, long_only=long_only, rebalance_freq=21
             )
