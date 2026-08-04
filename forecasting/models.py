@@ -113,7 +113,7 @@ def trend_forecast(
     model_name: str = "Linear",
     lookback: int = 252,
 ) -> pd.Series:
-    """Ajusta log(preço) \~ t e projeta horizon_days à frente."""
+    """Ajusta log(preço) ~ t e projeta horizon_days à frente."""
     hist = close.tail(lookback).dropna()
     if len(hist) < 10:
         raise ValueError("Histórico insuficiente para trend_forecast.")
