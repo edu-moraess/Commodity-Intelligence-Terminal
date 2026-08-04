@@ -37,7 +37,7 @@ def fit_hmm(
     x = np.asarray(returns, dtype=float)
     n = len(x)
     if n < 40:
-        raise ValueError("Série muito curta para HMM (mínimo \~40 observações).")
+        raise ValueError("Série muito curta para HMM (mínimo ~40 observações).")
     k = n_states
 
     abs_x = np.abs(x - x.mean())
