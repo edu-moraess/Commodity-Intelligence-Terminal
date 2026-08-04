@@ -141,4 +141,4 @@ def cached_full_backtest_report(
     method: str = "historical",
 ) -> dict:
     from analytics.backtesting import full_backtest_report
-    return full_backtest_report(close, confidence=confidence, window=window, method=method)
+    return full_backtest_report(close, confidence=confidence, window=window, method=method) 
