@@ -255,4 +255,4 @@ st.caption(
     f"Fontes: Yahoo Finance · fallback sintético. Taxa livre de risco = {RISK_FREE_RATE_ANNUAL:.2%} a.a."
 )
 with st.expander("📚 Referências Acadêmicas"):
-    st.markdown("Sharpe (1966), Sortino & Price (1994), Campbell et al. (1997).")
+    st.markdown("Sharpe (1966), Sortino & Price (1994), Campbell et al. (1997).") 
