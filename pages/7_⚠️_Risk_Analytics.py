@@ -4,7 +4,7 @@ import numpy as np
 
 from config.settings import ALL_ASSETS, APP_NAME
 from data.data_manager import load_price_history
-from analytics import risk, metrics, backtesting, regimes
+from analytics import risk, metrics, backtesting, regimes, cached
 from charts import plotly_charts as charts
 
 # NOTA v4.5.0: st.set_page_config() removido daqui — agora é chamado
@@ -149,11 +149,11 @@ with tab_backtest:
         with st.spinner("Rodando VaR rolling out-of-sample e testes de backtest..."):
             # Usa full_backtest_report se disponível; senão joint_backtest
             if hasattr(backtesting, "full_backtest_report"):
-                bt = backtesting.full_backtest_report(
+                bt = cached.cached_full_backtest_report(
                     close, confidence=confidence, window=window, method=method
                 )
             else:
-                bt = backtesting.joint_backtest(
+                bt = cached.cached_joint_backtest(
                     close, confidence=confidence, window=window, method=method
                 )
 
@@ -265,11 +265,11 @@ with tab_regimes:
 
     n_obs = len(metrics.daily_returns(close))
     if n_obs < 100:
-        st.warning(f"⚠️ Histórico insuficiente para ajustar o HMM: {n_obs} observações (mínimo \~100).")
+        st.warning(f"⚠️ Histórico insuficiente para ajustar o HMM: {n_obs} observações (mínimo ~100).")
     else:
         with st.spinner("Ajustando HMM via Baum-Welch..."):
             try:
-                reg = regimes.regime_summary(
+                reg = cached.cached_regime_summary(
                     close, n_states=n_states, n_iter=150, auto_select=auto_select
                 )
                 hmm_error = None
