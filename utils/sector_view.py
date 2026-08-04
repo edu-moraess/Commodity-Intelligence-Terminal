@@ -4,7 +4,7 @@ Sector View — Renderização Compartilhada por Setor
 Energia, Metais e Agricultura compartilham a mesma anatomia de página
 (cards de preço, tabela de métricas, candlestick por ativo, correlação
 intra-setor). Este módulo centraliza essa renderização para as três
-páginas de setor, evitando triplicar \~200 linhas de layout Streamlit.
+páginas de setor, evitando triplicar ~200 linhas de layout Streamlit.
 
 CHANGELOG Parte 3:
 - Skeleton loading (KPI + tabela) no lugar de spinner genérico isolado.
@@ -174,29 +174,26 @@ def render_sector_page(
             width="stretch",
         )
 
-        col_a, col_b = st.columns(2)
-        with col_a:
-            cum_ret = metrics.cumulative_return_series(selected_df["Close"])
-            st.plotly_chart(
-                charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
-                width="stretch",
-            )
-        with col_b:
-            try:
-                avg_volume = float(selected_df["Volume"].tail(20).mean())
-                if pd.isna(avg_volume):
-                    avg_volume = 0.0
-            except (KeyError, TypeError):
+        cum_ret = metrics.cumulative_return_series(selected_df["Close"])
+        st.plotly_chart(
+            charts.line_chart({selected_asset.name: cum_ret}, title="Retorno Acumulado", y_title="%"),
+            width="stretch",
+        )
+        try:
+            avg_volume = float(selected_df["Volume"].tail(20).mean())
+            if pd.isna(avg_volume):
                 avg_volume = 0.0
-            st.plotly_chart(
-                charts.bar_chart(
-                    ["Volume médio (20d)"],
-                    [avg_volume],
-                    title="Volume Médio Recente",
-                    positive_negative=False,
-                ),
-                width="stretch",
-            )
+        except (KeyError, TypeError):
+            avg_volume = 0.0
+        st.plotly_chart(
+            charts.bar_chart(
+                ["Volume médio (20d)"],
+                [avg_volume],
+                title="Volume Médio Recente",
+                positive_negative=False,
+            ),
+            width="stretch",
+        )
 
     st.divider()
 
@@ -224,4 +221,4 @@ def render_sector_page(
         with st.expander("📌 Notas metodológicas de fonte de dados"):
             for a in assets:
                 if a.note:
-                    st.markdown(f"**{a.name}** — {a.note}") 
+                    st.markdown(f"**{a.name}** — {a.note}")
