@@ -157,7 +157,7 @@ def fit_volatility_model(
     """
     rets = daily_returns(close).tail(lookback).dropna()
     if len(rets) < 50:
-        raise ValueError("Série muito curta para ajuste de volatilidade (mín. \~50 obs).")
+        raise ValueError("Série muito curta para ajuste de volatilidade (mín. ~50 obs).")
 
     rets_pct = rets * 100  # escala % para melhor condicionamento numérico
 
