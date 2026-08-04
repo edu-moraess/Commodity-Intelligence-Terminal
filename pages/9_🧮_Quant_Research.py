@@ -5,8 +5,10 @@ import pandas as pd
 from config.settings import ALL_ASSETS, APP_NAME
 from data.data_manager import load_price_history
 from analytics import volatility as vol_mod
+from analytics import cached
 from forecasting import models as fc
 from charts import plotly_charts as charts
+from utils.export import download_dataframe
 
 st.title("🧮 Quant Research")
 st.caption(
@@ -43,14 +45,14 @@ with st.spinner("Ajustando modelo de volatilidade..."):
     try:
         if model_choice.startswith("Auto"):
             if hasattr(vol_mod, "select_best_volatility_model"):
-                fit = vol_mod.select_best_volatility_model(close, lookback=lookback, criterion=criterion)
+                fit = cached.cached_select_best_volatility_model(close, lookback=lookback, criterion=criterion)
             else:
-                fit = vol_mod.fit_garch11(close, lookback=lookback)
+                fit = cached.cached_fit_garch11(close, lookback=lookback)
         else:
             if hasattr(vol_mod, "fit_volatility_model"):
-                fit = vol_mod.fit_volatility_model(close, model=model_choice, lookback=lookback)
+                fit = cached.cached_fit_volatility_model(close, model=model_choice, lookback=lookback)
             else:
-                fit = vol_mod.fit_garch11(close, lookback=lookback)
+                fit = cached.cached_fit_garch11(close, lookback=lookback)
         fit_ok = True
         fit_err = None
     except Exception as exc:
@@ -104,24 +106,21 @@ else:
         val = fit.get(key, np.nan)
         fh_rows.append({"Horizonte (dias)": h, "Vol. Anualizada Prevista": val})
     fh_df = pd.DataFrame(fh_rows)
-    c_fh1, c_fh2 = st.columns([1, 2])
-    with c_fh1:
-        st.dataframe(
-            fh_df.style.format({"Vol. Anualizada Prevista": "{:.2%}"}),
+    st.dataframe(
+        fh_df.style.format({"Vol. Anualizada Prevista": "{:.2%}"}),
+        width="stretch",
+        hide_index=True,
+    )
+    if fh_df["Vol. Anualizada Prevista"].notna().any():
+        st.plotly_chart(
+            charts.bar_chart(
+                [str(h) for h in horizons],
+                fh_df["Vol. Anualizada Prevista"].fillna(0).tolist(),
+                title="Vol Prevista por Horizonte",
+                positive_negative=False,
+            ),
             width="stretch",
-            hide_index=True,
         )
-    with c_fh2:
-        if fh_df["Vol. Anualizada Prevista"].notna().any():
-            st.plotly_chart(
-                charts.bar_chart(
-                    [str(h) for h in horizons],
-                    fh_df["Vol. Anualizada Prevista"].fillna(0).tolist(),
-                    title="Vol Prevista por Horizonte",
-                    positive_negative=False,
-                ),
-                width="stretch",
-            )
 
 # ============================================================
 # COMPARAÇÃO DE MODELOS GARCH
@@ -133,7 +132,7 @@ st.caption("Ranking por AIC / BIC / Log-Likelihood. Menor AIC/BIC = melhor. Maio
 if st.button("Comparar GARCH / EGARCH / GJR / APARCH", type="primary"):
     if hasattr(vol_mod, "compare_volatility_models"):
         with st.spinner("Ajustando todos os modelos..."):
-            ranking = vol_mod.compare_volatility_models(close, lookback=lookback)
+            ranking = cached.cached_compare_volatility_models(close, lookback=lookback)
         if ranking is not None and not ranking.empty:
             st.dataframe(
                 ranking.style.format({
@@ -215,6 +214,7 @@ if st.button("Rodar Walk-Forward Validation", type="primary", key="wf_btn"):
             if c != "Modelo" and c != "n_folds":
                 fmt[c] = "{:.4f}"
         st.dataframe(df_summary.style.format(fmt, na_rep="—"), width="stretch", hide_index=True)
+        download_dataframe(df_summary, filename_stem="quant_research_walkforward")
         best = df_summary.iloc[0]["Modelo"] if "Modelo" in df_summary.columns else df_summary.index[0]
         st.success(f"Melhor modelo por RMSE fora da amostra: **{best}**")
     else:
