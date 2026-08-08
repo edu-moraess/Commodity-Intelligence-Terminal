@@ -45,9 +45,10 @@ def _stationary_bootstrap_path(
     n = len(rets)
     path = np.empty(horizon)
     t = 0
+    p = float(np.clip(p, 1e-6, 1.0))
     while t < horizon:
-        start = rng.integers(0, n)
-        length = rng.geometric(p)
+        start = int(rng.integers(0, n))
+        length = int(rng.geometric(p))
         for j in range(length):
             if t >= horizon:
                 break
@@ -107,20 +108,22 @@ def monte_carlo_paths(
     if len(rets) < 10:
         raise ValueError("Série de retornos insuficiente para Monte Carlo.")
 
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(int(seed))
     s0 = float(close.iloc[-1])
 
     if mu is None:
         mu = float(np.mean(rets))
     if sigma is None:
         sigma = float(np.std(rets, ddof=1))
+        if not np.isfinite(sigma) or sigma <= 0:
+            sigma = 0.01
 
     paths = np.zeros((n_sims, horizon_days))
 
     if method == "block_bootstrap":
         if block_size is None or block_size <= 0:
             block_size = _optimal_block_length(rets)
-        p = 1.0 / max(block_size, 1)
+        p = 1.0 / max(float(block_size), 1.0)
         for i in range(n_sims):
             path_rets = _stationary_bootstrap_path(rets, horizon_days, p, rng)
             paths[i] = s0 * np.exp(np.cumsum(path_rets))
@@ -132,24 +135,26 @@ def monte_carlo_paths(
         paths = s0 * np.exp(np.cumsum(path_rets, axis=1))
 
     elif method == "jump_diffusion":
-        if _HAS_JUMP_CAL and jump_lambda == 0.1 and jump_mu == -0.02 and jump_sigma == 0.05:
+        if _HAS_JUMP_CAL and abs(jump_lambda - 0.1) < 1e-12 and abs(jump_mu + 0.02) < 1e-12 and abs(jump_sigma - 0.05) < 1e-12:
             cal = calibrate_jump_diffusion(rets)
-            jump_lambda = cal["jump_lambda"]
-            jump_mu = cal["jump_mu"]
-            jump_sigma = cal["jump_sigma"]
-            mu = cal["mu"]
-            sigma = cal["sigma"]
+            jump_lambda = float(cal["jump_lambda"])
+            jump_mu = float(cal["jump_mu"])
+            jump_sigma = float(cal["jump_sigma"])
+            mu = float(cal["mu"])
+            sigma = float(cal["sigma"])
         dt = 1.0
         z = rng.standard_normal((n_sims, horizon_days))
-        n_jumps = rng.poisson(jump_lambda * dt, size=(n_sims, horizon_days))
+        n_jumps = rng.poisson(max(jump_lambda, 0.0) * dt, size=(n_sims, horizon_days))
         jumps = n_jumps * (jump_mu + jump_sigma * rng.standard_normal((n_sims, horizon_days)))
         path_rets = (mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * z + jumps
         paths = s0 * np.exp(np.cumsum(path_rets, axis=1))
 
     elif method == "student_t":
         dt = 1.0
-        z = rng.standard_t(df_student, size=(n_sims, horizon_days))
-        z = z / (np.std(z, axis=1, keepdims=True) + 1e-12) * sigma
+        z = rng.standard_t(max(df_student, 2.1), size=(n_sims, horizon_days))
+        row_std = np.std(z, axis=1, keepdims=True)
+        row_std = np.where(row_std > 1e-12, row_std, 1.0)
+        z = z / row_std * sigma
         path_rets = (mu - 0.5 * sigma**2) * dt + z
         paths = s0 * np.exp(np.cumsum(path_rets, axis=1))
 
@@ -161,7 +166,7 @@ def monte_carlo_paths(
             path_rets = np.empty(horizon_days)
             for t in range(horizon_days):
                 path_rets[t] = mu + sigma_t * z[t]
-                sigma_t = np.sqrt(omega + alpha * path_rets[t] ** 2 + beta * sigma_t ** 2)
+                sigma_t = np.sqrt(max(omega + alpha * path_rets[t] ** 2 + beta * sigma_t ** 2, 1e-12))
             paths[i] = s0 * np.exp(np.cumsum(path_rets))
 
     else:
@@ -195,28 +200,43 @@ def scenario_summary(
     sma20 = float(close.tail(20).mean()) if len(close) >= 20 else last_price
     sma50 = float(close.tail(50).mean()) if len(close) >= 50 else last_price
     std20 = float(close.tail(20).std()) if len(close) >= 20 else 0.0
+    if not np.isfinite(std20):
+        std20 = 0.0
     bb_upper = sma20 + 2 * std20
     bb_lower = sma20 - 2 * std20
     support = float(close.tail(60).min()) if len(close) >= 60 else last_price * 0.9
     resistance = float(close.tail(60).max()) if len(close) >= 60 else last_price * 1.1
 
-    path_barriers = {}
+    path_barriers: dict = {}
     if _HAS_JUMP_CAL:
-        path_barriers = path_dependent_barrier_probs(
-            paths, support=support, resistance=resistance,
-            sma20=sma20, bb_upper=bb_upper, bb_lower=bb_lower,
-        )
+        try:
+            path_barriers = path_dependent_barrier_probs(
+                paths, support=support, resistance=resistance,
+                sma20=sma20, bb_upper=bb_upper, bb_lower=bb_lower,
+            )
+        except Exception:
+            path_barriers = {}
 
     from scipy import stats as _stats
-    skew = float(_stats.skew(rets_final))
-    kurt = float(_stats.kurtosis(rets_final))
-    jb_stat, jb_p = _stats.jarque_bera(rets_final)
+    skew = float(_stats.skew(rets_final)) if len(rets_final) > 2 else 0.0
+    kurt = float(_stats.kurtosis(rets_final)) if len(rets_final) > 3 else 0.0
+    try:
+        jb_stat, jb_p = _stats.jarque_bera(rets_final)
+        jb_stat, jb_p = float(jb_stat), float(jb_p)
+    except Exception:
+        jb_stat, jb_p = float("nan"), float("nan")
 
     effective_block = block_size
-    if method == "block_bootstrap" and block_size is None:
+    if method == "block_bootstrap" and (block_size is None or block_size <= 0):
         rets = daily_returns(close).tail(504).dropna().values
         if len(rets) >= 20:
             effective_block = _optimal_block_length(rets)
+        else:
+            effective_block = 5
+
+    # Nunca retornar None em campos numéricos (evita TypeError no Styler)
+    if effective_block is None:
+        effective_block = float("nan")
 
     return {
         "fan_chart": fan_chart,
@@ -233,10 +253,10 @@ def scenario_summary(
         "prob_acima_sma50": float(np.mean(final_prices > sma50)),
         "prob_acima_bb_upper": float(np.mean(final_prices > bb_upper)),
         "prob_abaixo_bb_lower": float(np.mean(final_prices < bb_lower)),
-        "prob_rompe_suporte_path": path_barriers.get("prob_rompe_suporte_path", float(np.mean(final_prices < support))),
-        "prob_rompe_resistencia_path": path_barriers.get("prob_rompe_resistencia_path", float(np.mean(final_prices > resistance))),
-        "prob_acima_bb_upper_path": path_barriers.get("prob_acima_bb_upper_path"),
-        "prob_abaixo_bb_lower_path": path_barriers.get("prob_abaixo_bb_lower_path"),
+        "prob_rompe_suporte_path": float(path_barriers.get("prob_rompe_suporte_path", np.mean(final_prices < support))),
+        "prob_rompe_resistencia_path": float(path_barriers.get("prob_rompe_resistencia_path", np.mean(final_prices > resistance))),
+        "prob_acima_bb_upper_path": float(path_barriers["prob_acima_bb_upper_path"]) if path_barriers.get("prob_acima_bb_upper_path") is not None else float("nan"),
+        "prob_abaixo_bb_lower_path": float(path_barriers["prob_abaixo_bb_lower_path"]) if path_barriers.get("prob_abaixo_bb_lower_path") is not None else float("nan"),
         "preco_atual": last_price,
         "final_prices_dist": final_prices,
         "intervalo_confianca_90": (
@@ -245,10 +265,10 @@ def scenario_summary(
         ),
         "skewness": skew,
         "kurtosis": kurt,
-        "jarque_bera_stat": float(jb_stat),
-        "jarque_bera_pvalue": float(jb_p),
+        "jarque_bera_stat": jb_stat,
+        "jarque_bera_pvalue": jb_p,
         "method": method,
-        "seed": seed,
+        "seed": int(seed),
         "block_size_used": effective_block,
         "support": support,
         "resistance": resistance,
@@ -264,26 +284,49 @@ def compare_monte_carlo_methods(
     n_sims: int = 1500,
     seed: int = 42,
 ) -> pd.DataFrame:
-    """Compara métodos de Monte Carlo lado a lado."""
+    """Compara métodos de Monte Carlo lado a lado.
+
+    Retorna DataFrame com colunas numéricas estáveis (sem None) para
+    evitar TypeError no pandas Styler.format da UI.
+    """
     methods = ["block_bootstrap", "gbm", "jump_diffusion", "student_t", "garch_mc"]
     rows = []
     for m in methods:
         try:
-            s = scenario_summary(close, horizon_days, n_sims=n_sims, method=m, seed=seed)
+            s = scenario_summary(
+                close, horizon_days, n_sims=int(n_sims), method=m, seed=int(seed)
+            )
+            bl = s.get("block_size_used", np.nan)
+            if bl is None:
+                bl = np.nan
             rows.append({
-                "Método": m,
-                "Expected Price": s["expected_price"],
-                "Expected Return": s["expected_return"],
-                "P(Alta)": s["prob_alta"],
-                "P(Baixa)": s["prob_baixa"],
-                "P10": s["cenario_pessimista"],
-                "P50": s["cenario_base"],
-                "P90": s["cenario_otimista"],
-                "Skewness": s["skewness"],
-                "Kurtosis": s["kurtosis"],
-                "JB p-value": s["jarque_bera_pvalue"],
-                "Block Size": s.get("block_size_used"),
+                "Método": str(m),
+                "Expected Price": float(s["expected_price"]),
+                "Expected Return": float(s["expected_return"]),
+                "P(Alta)": float(s["prob_alta"]),
+                "P(Baixa)": float(s["prob_baixa"]),
+                "P10": float(s["cenario_pessimista"]),
+                "P50": float(s["cenario_base"]),
+                "P90": float(s["cenario_otimista"]),
+                "Skewness": float(s["skewness"]),
+                "Kurtosis": float(s["kurtosis"]),
+                "JB p-value": float(s["jarque_bera_pvalue"]) if np.isfinite(s["jarque_bera_pvalue"]) else np.nan,
+                "Block Size": float(bl) if np.isfinite(bl) else np.nan,
             })
         except Exception as exc:
-            rows.append({"Método": m, "Erro": str(exc)[:80]})
+            rows.append({
+                "Método": str(m),
+                "Expected Price": np.nan,
+                "Expected Return": np.nan,
+                "P(Alta)": np.nan,
+                "P(Baixa)": np.nan,
+                "P10": np.nan,
+                "P50": np.nan,
+                "P90": np.nan,
+                "Skewness": np.nan,
+                "Kurtosis": np.nan,
+                "JB p-value": np.nan,
+                "Block Size": np.nan,
+                "Erro": str(exc)[:120],
+            })
     return pd.DataFrame(rows)
