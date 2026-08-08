@@ -3,22 +3,11 @@ Commodity Intelligence Terminal — Entry Point (Home)
 =====================================================
 Ponto de entrada único do app. Usa st.navigation/st.Page (API nativa do
 Streamlit >= 1.36) para declarar explicitamente o nome e o ícone de cada
-página, em vez de deixar o Streamlit inferir a partir do nome do arquivo.
+página.
 
-CHANGELOG v4.5.0 (fix de navegação):
-- Antes, a lista de páginas era 100% automática (pasta pages/), o que
-  fazia o item de entrada aparecer com o rótulo cru "app" (nome do
-  arquivo app.py sem tratamento) — sem ícone, sem nome amigável,
-  parecendo um item "extra"/duplicado ao lado dos outros módulos.
-- Agora cada página é registrada explicitamente via st.Page(...) com
-  título e ícone próprios. "app" não aparece mais em lugar nenhum.
-- O bloco de branding do sidebar (título, botão "Atualizar dados", data)
-  antes só era renderizado na Home, porque vivia dentro do script
-  app.py e as outras páginas rodavam isoladas. Agora ele roda ANTES de
-  st.navigation(...).run(), então aparece de forma consistente em
-  TODAS as páginas.
-- st.set_page_config() só pode ser chamado 1x por sessão — por isso foi
-  removido do topo de cada arquivo em pages/ (ver nota lá).
+CHANGELOG v5.0.0:
+- Health check no sidebar (Fase 5 produção).
+- APP_VERSION visível no branding.
 """
 
 from datetime import datetime, timezone, timedelta
@@ -26,7 +15,10 @@ from datetime import datetime, timezone, timedelta
 import streamlit as st
 import pandas as pd
 
-from config.settings import APP_NAME, APP_ICON, ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, ALL_ASSETS, THEME
+from config.settings import (
+    APP_NAME, APP_ICON, APP_VERSION,
+    ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, ALL_ASSETS, THEME,
+)
 from data.data_manager import load_price_history_bulk
 from analytics import metrics
 from charts import plotly_charts as charts
@@ -35,25 +27,19 @@ from utils.design_system import inject_institutional_css, render_sidebar_brand
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="expanded")
 
-# --------------------------------------------------------------------------
-# DESIGN SYSTEM INSTITUCIONAL (CSS)
-# --------------------------------------------------------------------------
 inject_institutional_css()
 
-# --------------------------------------------------------------------------
-# TICKER TAPE — roda em TODA página (antes de pg.run()), estilo Bloomberg/Investing
-# --------------------------------------------------------------------------
 with st.spinner("Carregando fita de cotações..."):
     _ticker_price_data = load_price_history_bulk(ALL_ASSETS)
 render_ticker_tape(_ticker_price_data, ALL_ASSETS)
 
 
-# --------------------------------------------------------------------------
-# PÁGINA HOME
-# --------------------------------------------------------------------------
 def render_home() -> None:
     st.title(f"{APP_ICON} {APP_NAME}")
-    st.caption("Monitoramento institucional do mercado global de commodities — Energia · Metais · Agricultura")
+    st.caption(
+        f"Monitoramento institucional do mercado global de commodities — "
+        f"Energia · Metais · Agricultura · v{APP_VERSION}"
+    )
 
     quick_assets = [
         ENERGY_ASSETS[0],
@@ -130,19 +116,36 @@ def render_home() -> None:
             "quebre em produção."
         )
         st.info(
-            "Módulos avançados (NLP de notícias, ESG, Supply Chain/Sankey, geopolítica em mapa, "
-            "modelos VAR/VECM/HMM/deep learning) estão no roadmap — ver README.",
+            f"Versão **{APP_VERSION}** · Monte Carlo com cache de cenários, "
+            "density backtest (CRPS/PIT) e health checks operacionais.",
             icon="🧭",
         )
 
 
 # --------------------------------------------------------------------------
-# SIDEBAR BRAND (visível em todas as páginas)
+# SIDEBAR BRAND + HEALTH (visível em todas as páginas)
 # --------------------------------------------------------------------------
 render_sidebar_brand()
 
+with st.sidebar:
+    st.caption(f"v{APP_VERSION}")
+    with st.expander("System health", expanded=False):
+        try:
+            from utils.health import run_health_checks
+            report = run_health_checks(version=APP_VERSION)
+            if report.overall_ok:
+                st.success("Core systems OK")
+            else:
+                st.error("Core systems degraded")
+            for c in report.checks:
+                icon = "✅" if c.ok else "⚠️"
+                lat = f" ({c.latency_ms:.0f} ms)" if c.latency_ms is not None else ""
+                st.caption(f"{icon} **{c.name}**{lat} — {c.detail}")
+        except Exception as exc:
+            st.warning(f"Health check indisponível: {exc}")
+
 # --------------------------------------------------------------------------
-# NAVEGAÇÃO EXPLÍCITA (inclui Portfolio)
+# NAVEGAÇÃO EXPLÍCITA
 # --------------------------------------------------------------------------
 pg = st.navigation([
     st.Page(render_home, title="Visão Geral", icon="🏠", default=True, url_path="home"),
