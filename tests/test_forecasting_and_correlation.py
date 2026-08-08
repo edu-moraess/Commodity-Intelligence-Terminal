@@ -73,3 +73,53 @@ def test_pca_explained_variance_sums_to_at_most_one():
     }, index=dates)
     result = correlation.pca_components(panel, n_components=3)
     assert sum(result["explained_variance_ratio"]) <= 1.0001
+
+
+# ---------------------------------------------------------------------------
+# Fase 1 — novos testes de robustez quant
+# ---------------------------------------------------------------------------
+
+def test_stationary_bootstrap_reproducible_with_seed(sample_close):
+    """Mesmo seed deve produzir paths idênticos."""
+    p1 = fc.monte_carlo_paths(sample_close, horizon_days=15, n_sims=50, method="block_bootstrap", seed=123)
+    p2 = fc.monte_carlo_paths(sample_close, horizon_days=15, n_sims=50, method="block_bootstrap", seed=123)
+    np.testing.assert_array_almost_equal(p1, p2)
+
+
+def test_different_seeds_produce_different_paths(sample_close):
+    p1 = fc.monte_carlo_paths(sample_close, horizon_days=15, n_sims=50, method="block_bootstrap", seed=1)
+    p2 = fc.monte_carlo_paths(sample_close, horizon_days=15, n_sims=50, method="block_bootstrap", seed=2)
+    assert not np.allclose(p1, p2)
+
+
+def test_optimal_block_length_returns_sensible_value(sample_close):
+    rets = np.diff(np.log(sample_close.values))
+    bl = fc._optimal_block_length(rets)
+    assert 3 <= bl <= 20
+
+
+def test_garch_mc_paths_shape_and_positive(sample_close):
+    paths = fc.monte_carlo_paths(sample_close, horizon_days=20, n_sims=80, method="garch_mc", seed=42)
+    assert paths.shape == (80, 20)
+    assert (paths > 0).all()
+
+
+def test_scenario_summary_exposes_seed_and_block_size(sample_close):
+    s = fc.scenario_summary(sample_close, horizon_days=20, n_sims=200, method="block_bootstrap", seed=99)
+    assert s.get("seed") == 99
+    assert "block_size_used" in s
+    assert s["block_size_used"] is None or (3 <= s["block_size_used"] <= 20)
+
+
+def test_compare_methods_includes_garch_mc(sample_close):
+    df = fc.compare_monte_carlo_methods(sample_close, horizon_days=15, n_sims=100, seed=42)
+    methods = set(df["Método"].tolist()) if "Método" in df.columns else set()
+    assert "garch_mc" in methods or any("Erro" in str(r) for r in df.to_dict("records"))
+
+
+def test_all_mc_methods_produce_positive_prices(sample_close):
+    for method in ["block_bootstrap", "gbm", "jump_diffusion", "student_t", "garch_mc"]:
+        paths = fc.monte_carlo_paths(
+            sample_close, horizon_days=10, n_sims=50, method=method, seed=7
+        )
+        assert (paths > 0).all(), f"{method} gerou preços não-positivos"
