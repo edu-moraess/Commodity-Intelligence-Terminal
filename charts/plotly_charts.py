@@ -6,17 +6,13 @@ internas (ultimo preco, extremos, notas de leitura).
 
 NAO altera calculos — apenas apresentacao visual.
 
-BUGFIX (título x nota sobrepostos): antes, o título do gráfico
-(`layout["title"]`) e a nota automática (`_note()`, uma annotation
-solta em xref/yref="paper", y=0.98) ocupavam a MESMA região no canto
-superior-esquerdo — resultado: duas caixas de texto competindo pelo
-mesmo espaço, uma "riscando" a outra visualmente. Corrigido fundindo
-título + nota num único bloco de título com subtítulo (`<br>` +
-`<span>` menor e mais claro logo abaixo do título principal) — o
-Plotly reserva o espaço verticalmente sozinho, então não existe mais
-como colidir, em nenhuma altura de gráfico. Padrão usado por
-dashboards financeiros reais (título em negrito + linha de contexto
-em cinza logo abaixo, como uma legenda única).
+Layout de legenda (padrao institucional):
+  - Legenda horizontal CENTRALIZADA ABAIXO do plot (y negativo),
+    nunca no topo (evita colisao com titulo/subtitulo).
+  - Margem inferior generosa para caber a legenda sem clip.
+  - Series unicas: legenda oculta (showlegend=False no tema quando
+    ha <= 1 trace com nome).
+  - Labels de ultimo preco: textposition top right, fora da linha.
 """
 
 from __future__ import annotations
@@ -43,49 +39,135 @@ _C = {
     "green": "#00c853",
 }
 
+# Legenda fora da area de dados — abaixo, centrada, compacta
+_LEGEND_BOTTOM = dict(
+    bgcolor="rgba(0,0,0,0)",
+    borderwidth=0,
+    orientation="h",
+    y=-0.22,
+    yanchor="top",
+    x=0.5,
+    xanchor="center",
+    font=dict(size=10, color=_C["muted"]),
+    itemsizing="constant",
+    tracegroupgap=8,
+    itemwidth=30,
+)
+
 _LAYOUT_DEFAULTS = dict(
     paper_bgcolor=_C["paper"],
     plot_bgcolor=_C["bg"],
     font=dict(color=_C["text"], family="Inter, -apple-system, BlinkMacSystemFont, sans-serif", size=12),
-    margin=dict(l=48, r=56, t=64, b=40),
+    # t: titulo; b: legenda horizontal; r: eixo Y a direita + labels
+    margin=dict(l=40, r=52, t=56, b=72),
     hovermode="x unified",
-    hoverlabel=dict(bgcolor="#111111", bordercolor="#333333",
-                    font=dict(family="Inter, sans-serif", size=12, color=_C["text"]), align="left"),
-    legend=dict(bgcolor="rgba(0,0,0,0)", borderwidth=0, orientation="h", y=1.14, x=0,
-                font=dict(size=11, color=_C["muted"]), itemsizing="constant", tracegroupgap=10),
-    xaxis=dict(showgrid=False, zeroline=False, showline=False,
-               tickfont=dict(size=11, color=_C["muted"]), title_font=dict(size=11, color=_C["muted"]),
-               showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
-               spikecolor="rgba(255,255,255,0.25)", spikedash="dot"),
-    yaxis=dict(showgrid=False, zeroline=False, showline=False, side="right",
-               tickfont=dict(size=11, color=_C["muted"]), title_font=dict(size=11, color=_C["muted"]),
-               showspikes=True, spikemode="across", spikesnap="cursor", spikethickness=1,
-               spikecolor="rgba(255,255,255,0.25)", spikedash="dot"),
+    hoverlabel=dict(
+        bgcolor="#111111",
+        bordercolor="#333333",
+        font=dict(family="Inter, sans-serif", size=12, color=_C["text"]),
+        align="left",
+    ),
+    legend=_LEGEND_BOTTOM,
+    xaxis=dict(
+        showgrid=False, zeroline=False, showline=False,
+        tickfont=dict(size=11, color=_C["muted"]),
+        title_font=dict(size=11, color=_C["muted"]),
+        showspikes=True, spikemode="across", spikesnap="cursor",
+        spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
+    ),
+    yaxis=dict(
+        showgrid=False, zeroline=False, showline=False, side="right",
+        tickfont=dict(size=11, color=_C["muted"]),
+        title_font=dict(size=11, color=_C["muted"]),
+        showspikes=True, spikemode="across", spikesnap="cursor",
+        spikethickness=1, spikecolor="rgba(255,255,255,0.25)", spikedash="dot",
+    ),
     transition=dict(duration=200, easing="cubic-in-out"),
 )
 
 
 def _title_block(title: Optional[str], subtitle: Optional[str]) -> Optional[dict]:
-    """Monta o objeto de título único (título + subtítulo opcional na
-    mesma peça, via <br> + <span>). Substitui o par título/annotation
-    solta que colidia visualmente."""
+    """Titulo + subtitulo numa unica peca (sem annotation solta no topo)."""
     if not title and not subtitle:
         return None
     text = f"<b>{title}</b>" if title else ""
     if subtitle:
         sep = "<br>" if title else ""
         text += f"{sep}<span style='font-size:11px;color:{_C['muted']}'>{subtitle}</span>"
-    return dict(text=text, font=dict(size=15, color=_C["text"], family="Inter, sans-serif"),
-                x=0.0, xanchor="left", y=0.97, yanchor="top", pad=dict(b=12, t=4))
+    return dict(
+        text=text,
+        font=dict(size=14, color=_C["text"], family="Inter, sans-serif"),
+        x=0.0,
+        xanchor="left",
+        y=0.98,
+        yanchor="top",
+        pad=dict(b=8, t=2),
+    )
 
 
-def _apply_theme(fig: go.Figure, title: Optional[str] = None, height: int = 440,
-                  subtitle: Optional[str] = None) -> go.Figure:
+def _count_legend_traces(fig: go.Figure) -> int:
+    n = 0
+    for tr in fig.data:
+        if getattr(tr, "showlegend", True) is False:
+            continue
+        name = getattr(tr, "name", None)
+        if name is None or str(name).strip() == "":
+            continue
+        n += 1
+    return n
+
+
+def _apply_theme(
+    fig: go.Figure,
+    title: Optional[str] = None,
+    height: int = 440,
+    subtitle: Optional[str] = None,
+    legend: str = "bottom",
+) -> go.Figure:
+    """Aplica tema e posiciona legenda de forma profissional.
+
+    legend:
+      - "bottom"  → horizontal sob o plot (padrao, sem poluicao)
+      - "right"   → vertical a direita (poucas series longas)
+      - "none"    → oculta legenda
+      - "auto"    → none se <=1 serie, senao bottom
+    """
     layout = dict(_LAYOUT_DEFAULTS)
     title_block = _title_block(title, subtitle)
     if title_block:
         layout["title"] = title_block
+
+    n_leg = _count_legend_traces(fig)
+    if legend == "auto":
+        legend = "none" if n_leg <= 1 else "bottom"
+
+    if legend == "none":
+        layout["showlegend"] = False
+        layout["margin"] = dict(l=40, r=52, t=56, b=40)
+    elif legend == "right":
+        layout["legend"] = dict(
+            bgcolor="rgba(0,0,0,0.55)",
+            borderwidth=0,
+            orientation="v",
+            y=1.0,
+            yanchor="top",
+            x=1.02,
+            xanchor="left",
+            font=dict(size=10, color=_C["muted"]),
+            itemsizing="constant",
+            tracegroupgap=6,
+        )
+        layout["margin"] = dict(l=40, r=120, t=56, b=40)
+        layout["showlegend"] = True
+    else:
+        # bottom — mais series => um pouco mais de margem inferior
+        extra_b = 8 if n_leg > 4 else 0
+        layout["legend"] = dict(_LEGEND_BOTTOM)
+        layout["margin"] = dict(l=40, r=52, t=56, b=72 + extra_b)
+        layout["showlegend"] = True
+
     fig.update_layout(**layout, height=height, uirevision="cit")
+
     for tr in fig.data:
         if getattr(tr, "type", None) == "scatter" and hasattr(tr, "line") and tr.line is not None:
             w = getattr(tr.line, "width", None)
@@ -104,6 +186,7 @@ def _apply_theme(fig: go.Figure, title: Optional[str] = None, height: int = 440,
 
 
 def _label_last(fig: go.Figure, series: pd.Series, color: str, fmt: str = "{:.2f}") -> None:
+    """Marcador + valor no ultimo ponto — fora da linha, sem competir com legenda."""
     if series is None or len(series) == 0:
         return
     s = series.dropna()
@@ -111,10 +194,13 @@ def _label_last(fig: go.Figure, series: pd.Series, color: str, fmt: str = "{:.2f
         return
     fig.add_trace(go.Scatter(
         x=[s.index[-1]], y=[float(s.iloc[-1])], mode="markers+text",
-        marker=dict(size=7, color=color, line=dict(width=1.5, color=_C["bg"])),
-        text=[fmt.format(float(s.iloc[-1]))], textposition="middle right",
-        textfont=dict(size=11, color=color, family="JetBrains Mono, monospace"),
-        showlegend=False, hoverinfo="skip",
+        marker=dict(size=6, color=color, line=dict(width=1.2, color=_C["bg"])),
+        text=[fmt.format(float(s.iloc[-1]))],
+        textposition="middle right",
+        textfont=dict(size=10, color=color, family="JetBrains Mono, monospace"),
+        showlegend=False,
+        hoverinfo="skip",
+        cliponaxis=False,
     ))
 
 
@@ -123,13 +209,14 @@ def candlestick_chart(df: pd.DataFrame, title: str = "", note: str = "") -> go.F
         x=df.index, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"],
         increasing_line_color=_C["green"], decreasing_line_color=_C["red"],
         increasing_fillcolor=_C["green"], decreasing_fillcolor=_C["red"], name="OHLC",
+        showlegend=False,
     )])
     fig.update_layout(xaxis_rangeslider_visible=False)
     if not note and len(df) > 0:
         last = float(df["Close"].iloc[-1])
         chg = float(df["Close"].iloc[-1] / df["Close"].iloc[0] - 1) * 100 if len(df) > 1 else 0
         note = "Close {:.2f}  ·  periodo {:+.1f}%".format(last, chg)
-    fig = _apply_theme(fig, title, subtitle=note)
+    fig = _apply_theme(fig, title, subtitle=note, legend="none")
     return fig
 
 
@@ -155,7 +242,9 @@ def line_chart(series_dict: Dict[str, pd.Series], title: str = "", y_title: str 
         chg = (float(s0.iloc[-1]) / float(s0.iloc[0]) - 1.0) * 100
         note = "Serie principal em {} de {:+.1f}% no periodo".format(
             "alta" if chg >= 0 else "baixa", chg)
-    fig = _apply_theme(fig, title, subtitle=note)
+    # 1 serie → sem legenda; varias → bottom
+    leg = "auto"
+    fig = _apply_theme(fig, title, subtitle=note, legend=leg)
     return fig
 
 
@@ -166,7 +255,16 @@ def correlation_heatmap(corr_matrix: pd.DataFrame, title: str = "Matriz de Corre
         colorscale=[[0, _C["red"]], [0.5, "#1a1a1a"], [1, _C["green"]]],
         zmid=0, zmin=-1, zmax=1, text=corr_matrix.round(2).values, texttemplate="%{text}",
         textfont=dict(size=11, color=_C["text"]),
-        colorbar=dict(title="rho", tickfont=dict(color=_C["muted"])),
+        colorbar=dict(
+            title=dict(text="ρ", font=dict(size=11, color=_C["muted"])),
+            tickfont=dict(color=_C["muted"], size=10),
+            thickness=12,
+            len=0.75,
+            y=0.5,
+            yanchor="middle",
+            x=1.02,
+        ),
+        showscale=True,
     ))
     if not note:
         cm = corr_matrix.copy()
@@ -176,7 +274,9 @@ def correlation_heatmap(corr_matrix: pd.DataFrame, title: str = "Matriz de Corre
             if len(flat):
                 pair = flat.idxmax()
                 note = "Maior |corr|: {} x {} = {:+.2f}".format(pair[0], pair[1], cm.loc[pair])
-    fig = _apply_theme(fig, title, height=max(360, 28 * len(corr_matrix)), subtitle=note)
+    fig = _apply_theme(fig, title, height=max(360, 28 * len(corr_matrix)), subtitle=note, legend="none")
+    # heatmap nao precisa de margem de legenda, mas precisa de r para colorbar
+    fig.update_layout(margin=dict(l=40, r=72, t=56, b=40))
     return fig
 
 
@@ -187,24 +287,30 @@ def fan_chart(fan_df: pd.DataFrame, last_price: float, last_date: pd.Timestamp,
         x=list(fan_df.index) + list(fan_df.index[::-1]),
         y=list(fan_df["p90"]) + list(fan_df["p10"][::-1]),
         fill="toself", fillcolor="rgba(245,215,110,0.10)",
-        line=dict(color="rgba(0,0,0,0)"), name="P10-P90", showlegend=True,
+        line=dict(color="rgba(0,0,0,0)"), name="P10–P90",
+        showlegend=True, hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
         x=list(fan_df.index) + list(fan_df.index[::-1]),
         y=list(fan_df["p75"]) + list(fan_df["p25"][::-1]),
         fill="toself", fillcolor="rgba(245,215,110,0.20)",
-        line=dict(color="rgba(0,0,0,0)"), name="P25-P75", showlegend=True,
+        line=dict(color="rgba(0,0,0,0)"), name="P25–P75",
+        showlegend=True, hoverinfo="skip",
     ))
-    fig.add_trace(go.Scatter(x=fan_df.index, y=fan_df["p50"], mode="lines",
-                              line=dict(color=_C["gold"], width=2.4), name="Mediana (Base)"))
-    fig.add_trace(go.Scatter(x=[last_date], y=[last_price], mode="markers",
-                              marker=dict(color=_C["white"], size=9, line=dict(width=1, color=_C["gold"])),
-                              name="Preco Atual"))
+    fig.add_trace(go.Scatter(
+        x=fan_df.index, y=fan_df["p50"], mode="lines",
+        line=dict(color=_C["gold"], width=2.4), name="Mediana",
+    ))
+    fig.add_trace(go.Scatter(
+        x=[last_date], y=[last_price], mode="markers",
+        marker=dict(color=_C["white"], size=8, line=dict(width=1.2, color=_C["gold"])),
+        name="Preço atual",
+    ))
     if not note:
         med = float(fan_df["p50"].iloc[-1]) if len(fan_df) else last_price
         upside = (med / last_price - 1.0) * 100 if last_price else 0
-        note = "Mediana terminal {:+.1f}% vs preco atual · leia o lag, nao o ruido".format(upside)
-    fig = _apply_theme(fig, title, height=480, subtitle=note)
+        note = "Mediana terminal {:+.1f}% vs preço atual".format(upside)
+    fig = _apply_theme(fig, title, height=480, subtitle=note, legend="bottom")
     return fig
 
 
@@ -212,8 +318,10 @@ def bar_chart(categories: List[str], values: List[float], title: str = "",
               positive_negative: bool = True, note: str = "") -> go.Figure:
     colors = ([_C["green"] if v >= 0 else _C["red"] for v in values]
               if positive_negative else _C["gold"])
-    fig = go.Figure(data=[go.Bar(x=categories, y=values, marker_color=colors)])
-    fig = _apply_theme(fig, title, subtitle=note)
+    fig = go.Figure(data=[go.Bar(
+        x=categories, y=values, marker_color=colors, showlegend=False,
+    )])
+    fig = _apply_theme(fig, title, subtitle=note, legend="none")
     return fig
 
 
@@ -222,15 +330,17 @@ def radar_chart(categories: List[str], values: List[float], name: str = "",
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
         r=values + [values[0]], theta=categories + [categories[0]],
-        fill="toself", name=name, line=dict(color=_C["gold"], width=2),
+        fill="toself", name=name or "Score",
+        line=dict(color=_C["gold"], width=2),
         fillcolor="rgba(245,215,110,0.18)",
+        showlegend=bool(name),
     ))
     fig.update_layout(polar=dict(
         bgcolor=_C["bg"],
         radialaxis=dict(gridcolor="#222222", color=_C["muted"], showline=False),
         angularaxis=dict(gridcolor="#222222", color=_C["text"]),
     ))
-    fig = _apply_theme(fig, title, subtitle=note)
+    fig = _apply_theme(fig, title, subtitle=note, legend="auto")
     return fig
 
 
@@ -241,19 +351,21 @@ def treemap_chart(labels: List[str], parents: List[str], values: List[float],
         marker=dict(colorscale=[[0, _C["red"]], [0.5, "#1a1a1a"], [1, _C["green"]]]),
         textfont=dict(color=_C["text"]),
     ))
-    fig = _apply_theme(fig, title, height=480, subtitle=note)
+    fig = _apply_theme(fig, title, height=480, subtitle=note, legend="none")
     return fig
 
 
 def histogram_chart(values, title: str = "", x_title: str = "", note: str = "") -> go.Figure:
-    fig = go.Figure(data=[go.Histogram(x=values, marker_color=_C["gold"], opacity=0.85)])
+    fig = go.Figure(data=[go.Histogram(
+        x=values, marker_color=_C["gold"], opacity=0.85, showlegend=False,
+    )])
     fig.update_xaxes(title_text=x_title)
     if not note:
         arr = np.asarray(list(values), dtype=float)
         arr = arr[np.isfinite(arr)]
         if len(arr):
-            note = "Media {:+.3f}  ·  desvio {:.3f}".format(float(np.mean(arr)), float(np.std(arr)))
-    fig = _apply_theme(fig, title, height=400, subtitle=note)
+            note = "Média {:+.3f}  ·  desvio {:.3f}".format(float(np.mean(arr)), float(np.std(arr)))
+    fig = _apply_theme(fig, title, height=400, subtitle=note, legend="none")
     return fig
 
 
@@ -264,22 +376,27 @@ def var_breach_chart(returns: pd.Series, var_series: pd.Series, breaches: pd.Ser
     rets_aligned = returns.reindex(idx)
     fig = go.Figure()
     bar_colors = [_C["red"] if b else _C["muted"] for b in breaches.reindex(idx).fillna(False)]
-    fig.add_trace(go.Bar(x=idx, y=rets_aligned, name="Retorno diario", marker_color=bar_colors, opacity=0.75))
-    fig.add_trace(go.Scatter(x=idx, y=-var_series, mode="lines", name="- VaR previsto",
-                              line=dict(color=_C["orange"], width=1.8, dash="dot")))
+    fig.add_trace(go.Bar(
+        x=idx, y=rets_aligned, name="Retorno",
+        marker_color=bar_colors, opacity=0.75,
+    ))
+    fig.add_trace(go.Scatter(
+        x=idx, y=-var_series, mode="lines", name="−VaR",
+        line=dict(color=_C["orange"], width=1.8, dash="dot"),
+    ))
     breach_dates = breaches[breaches].index.intersection(idx)
     n_breach = len(breach_dates)
     if n_breach > 0:
         fig.add_trace(go.Scatter(
             x=breach_dates, y=rets_aligned.reindex(breach_dates), mode="markers",
-            name="Excecoes ({})".format(n_breach),
-            marker=dict(color=_C["red"], size=8, symbol="x", line=dict(width=1, color=_C["white"])),
+            name=f"Exceções ({n_breach})",
+            marker=dict(color=_C["red"], size=7, symbol="x", line=dict(width=1, color=_C["white"])),
         ))
-    fig.update_yaxes(title_text="Retorno diario", tickformat=".1%")
+    fig.update_yaxes(title_text="Retorno diário", tickformat=".1%")
     if not note:
         rate = (n_breach / max(len(idx), 1)) * 100
-        note = "{} excecoes ({:.1f}% dos dias) · VaR deve conter ~95%".format(n_breach, rate)
-    fig = _apply_theme(fig, title, height=420, subtitle=note)
+        note = "{} exceções ({:.1f}% dos dias) · VaR deve conter ~95%".format(n_breach, rate)
+    fig = _apply_theme(fig, title, height=420, subtitle=note, legend="bottom")
     return fig
 
 
@@ -294,19 +411,29 @@ def regime_price_chart(close: pd.Series, viterbi_states: pd.Series,
         for i in range(1, len(states)):
             if states.iloc[i] != run_state:
                 if run_state == 1:
-                    shapes.append(dict(type="rect", xref="x", yref="paper",
-                                       x0=run_start, x1=states.index[i], y0=0, y1=1,
-                                       fillcolor=_C["red"], opacity=0.12, line_width=0))
+                    shapes.append(dict(
+                        type="rect", xref="x", yref="paper",
+                        x0=run_start, x1=states.index[i], y0=0, y1=1,
+                        fillcolor=_C["red"], opacity=0.12, line_width=0,
+                    ))
                 run_start, run_state = states.index[i], states.iloc[i]
         if run_state == 1:
-            shapes.append(dict(type="rect", xref="x", yref="paper",
-                               x0=run_start, x1=states.index[-1], y0=0, y1=1,
-                               fillcolor=_C["red"], opacity=0.12, line_width=0))
-    fig.add_trace(go.Scatter(x=close.index, y=close.values, mode="lines",
-                              line=dict(color=_C["gold"], width=2.0), name="Preco"))
+            shapes.append(dict(
+                type="rect", xref="x", yref="paper",
+                x0=run_start, x1=states.index[-1], y0=0, y1=1,
+                fillcolor=_C["red"], opacity=0.12, line_width=0,
+            ))
+    fig.add_trace(go.Scatter(
+        x=close.index, y=close.values, mode="lines",
+        line=dict(color=_C["gold"], width=2.0), name="Preço",
+        showlegend=False,
+    ))
     _label_last(fig, close, _C["gold"])
-    fig = _apply_theme(fig, title, height=420,
-                        subtitle=note or "Faixas vermelhas = regime de alta vol (HMM) · preco reage com lag")
+    fig = _apply_theme(
+        fig, title, height=420,
+        subtitle=note or "Faixas vermelhas = regime de alta vol (HMM)",
+        legend="none",
+    )
     fig.update_layout(shapes=shapes)
     return fig
 
@@ -328,16 +455,18 @@ def regime_probability_chart(state_probs: pd.DataFrame,
     fig.update_yaxes(title_text="Probabilidade", range=[0, 1], tickformat=".0%")
     if not note:
         last_hv = float(state_probs["prob_alta_vol"].iloc[-1]) if len(state_probs) else 0
-        note = "P(alta vol) atual = {:.0%} · regime e caminho, nao ponto".format(last_hv)
-    fig = _apply_theme(fig, title, height=300, subtitle=note)
+        note = "P(alta vol) atual = {:.0%}".format(last_hv)
+    fig = _apply_theme(fig, title, height=300, subtitle=note, legend="bottom")
     return fig
 
 
 def spread_chart(spread: pd.Series, mean: float, std: float,
                   title: str = "Spread do Par (Engle-Granger)", note: str = "") -> go.Figure:
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=spread.index, y=spread.values, mode="lines",
-                              line=dict(color=_C["blue"], width=2.0), name="Spread"))
+    fig.add_trace(go.Scatter(
+        x=spread.index, y=spread.values, mode="lines",
+        line=dict(color=_C["blue"], width=2.0), name="Spread", showlegend=False,
+    ))
     for k, dash, opacity in [(1, "dot", 0.55), (2, "dash", 0.4)]:
         fig.add_hline(y=mean + k * std, line=dict(color=_C["gold"], width=1, dash=dash), opacity=opacity)
         fig.add_hline(y=mean - k * std, line=dict(color=_C["gold"], width=1, dash=dash), opacity=opacity)
@@ -346,8 +475,8 @@ def spread_chart(spread: pd.Series, mean: float, std: float,
     if not note:
         last = float(spread.dropna().iloc[-1]) if len(spread.dropna()) else mean
         z = (last - mean) / std if std else 0
-        note = "Spread atual z = {:+.2f} sigma · bandas +/-1s / +/-2s em dourado".format(z)
-    fig = _apply_theme(fig, title, height=380, subtitle=note)
+        note = "z = {:+.2f}σ · bandas ±1σ / ±2σ".format(z)
+    fig = _apply_theme(fig, title, height=380, subtitle=note, legend="none")
     return fig
 
 
@@ -355,16 +484,28 @@ def kalman_beta_chart(beta_series: pd.Series, static_beta: Optional[float] = Non
                        title: str = "Hedge Ratio Dinamico (Kalman Filter)",
                        note: str = "") -> go.Figure:
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=beta_series.index, y=beta_series.values, mode="lines",
-                              line=dict(color=_C["blue"], width=2.0), name="beta Kalman"))
+    fig.add_trace(go.Scatter(
+        x=beta_series.index, y=beta_series.values, mode="lines",
+        line=dict(color=_C["blue"], width=2.0), name="β Kalman", showlegend=False,
+    ))
     if static_beta is not None:
         fig.add_hline(y=static_beta, line=dict(color=_C["gold"], width=1.4, dash="dash"))
-        fig.add_annotation(text="beta estatico (EG) = {:.3f}".format(static_beta),
-                           xref="paper", x=0.01, y=static_beta, yref="y",
-                           showarrow=False, font=dict(color=_C["gold"], size=11))
+        # annotation no canto inferior esquerdo do paper — nao compete com titulo
+        fig.add_annotation(
+            text="β estático (EG) = {:.3f}".format(static_beta),
+            xref="paper", yref="paper", x=0.01, y=0.02,
+            xanchor="left", yanchor="bottom",
+            showarrow=False,
+            font=dict(color=_C["gold"], size=10),
+            bgcolor="rgba(0,0,0,0.45)",
+            borderpad=3,
+        )
     _label_last(fig, beta_series, _C["blue"], fmt="{:.3f}")
-    fig = _apply_theme(fig, title, height=380,
-                        subtitle=note or "beta dinamico vs estatico · hedge ratio muda com o regime")
+    fig = _apply_theme(
+        fig, title, height=380,
+        subtitle=note or "β dinâmico vs estático",
+        legend="none",
+    )
     return fig
 
 
@@ -372,8 +513,10 @@ def zscore_chart(z_score: pd.Series,
                   title: str = "Z-Score do Spread — Sinal de Pairs Trading",
                   note: str = "") -> go.Figure:
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=z_score.index, y=z_score.values, mode="lines",
-                              line=dict(color=_C["white"], width=1.8), name="Z-Score"))
+    fig.add_trace(go.Scatter(
+        x=z_score.index, y=z_score.values, mode="lines",
+        line=dict(color=_C["white"], width=1.8), name="Z-Score", showlegend=False,
+    ))
     ymax = max(float(np.nanmax(z_score.values)) if len(z_score) else 3, 3)
     ymin = min(float(np.nanmin(z_score.values)) if len(z_score) else -3, -3)
     fig.add_hrect(y0=2, y1=ymax, fillcolor=_C["red"], opacity=0.08, line_width=0)
@@ -385,29 +528,36 @@ def zscore_chart(z_score: pd.Series,
     if not note:
         last = float(z_score.dropna().iloc[-1]) if len(z_score.dropna()) else 0
         if last >= 2:
-            note = "Z = {:+.2f} · zona de venda do spread (|z|>2)".format(last)
+            note = "Z = {:+.2f} · zona de venda (|z|>2)".format(last)
         elif last <= -2:
-            note = "Z = {:+.2f} · zona de compra do spread (|z|>2)".format(last)
+            note = "Z = {:+.2f} · zona de compra (|z|>2)".format(last)
         else:
-            note = "Z = {:+.2f} · dentro da banda · sem sinal extremo".format(last)
-    fig = _apply_theme(fig, title, height=380, subtitle=note)
+            note = "Z = {:+.2f} · dentro da banda".format(last)
+    fig = _apply_theme(fig, title, height=380, subtitle=note, legend="none")
     return fig
 
 
 def risk_return_scatter(df: pd.DataFrame, title: str = "Risco vs. Retorno",
                          note: str = "") -> go.Figure:
-    sector_colors = {"Energia": _C["orange"], "Metais": _C["gold"],
-                     "Agricultura": _C["green"], "Brasil": _C["blue"]}
+    sector_colors = {
+        "Energia": _C["orange"], "Metais": _C["gold"],
+        "Agricultura": _C["green"], "Brasil": _C["blue"],
+    }
     fig = go.Figure()
     for sector in df["sector"].unique():
         sub = df[df["sector"] == sector]
         fig.add_trace(go.Scatter(
             x=sub["vol"], y=sub["sharpe"], mode="markers+text",
             text=sub["name"], textposition="top center",
-            textfont=dict(size=10, color=_C["muted"]), name=sector,
-            marker=dict(size=(sub["momentum"].abs() * 300).clip(lower=10, upper=42),
-                        color=sector_colors.get(sector, _C["gold"]),
-                        opacity=0.85, line=dict(width=1, color=_C["bg"])),
+            textfont=dict(size=9, color=_C["muted"]),
+            name=sector,
+            marker=dict(
+                size=(sub["momentum"].abs() * 300).clip(lower=10, upper=42),
+                color=sector_colors.get(sector, _C["gold"]),
+                opacity=0.85,
+                line=dict(width=1, color=_C["bg"]),
+            ),
+            cliponaxis=False,
         ))
     fig.add_hline(y=0, line=dict(color=_C["muted"], width=1, dash="dot"), opacity=0.5)
     fig.update_xaxes(title_text="Volatilidade Anualizada", tickformat=".0%")
@@ -416,16 +566,15 @@ def risk_return_scatter(df: pd.DataFrame, title: str = "Risco vs. Retorno",
         best = df.loc[df["sharpe"].idxmax()]
         note = "Melhor Sharpe: {} ({:+.2f}) · tamanho = |momentum|".format(
             best["name"], float(best["sharpe"]))
-    fig = _apply_theme(fig, title, height=480, subtitle=note)
+    # legenda de setores embaixo — labels dos ativos ficam no plot
+    fig = _apply_theme(fig, title, height=500, subtitle=note, legend="bottom")
     return fig
 
 
 def efficient_frontier_chart(frontier: pd.DataFrame, method_points: list,
                               title: str = "Fronteira Eficiente (anualizada)",
                               note: str = "") -> go.Figure:
-    """Fronteira eficiente (linha) + pontos de cada método de otimização
-    (Max Sharpe, Min Variance, Risk Parity, ...) sobrepostos, com cores
-    100% da paleta _C do arquivo (nada de azul padrão do Plotly)."""
+    """Fronteira + pontos de metodo. Labels so no hover/legenda — sem texto sobre o ponto."""
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=frontier["volatility"], y=frontier["return"], mode="lines",
@@ -434,13 +583,16 @@ def efficient_frontier_chart(frontier: pd.DataFrame, method_points: list,
     palette = [_C["green"], _C["red"], _C["blue"], _C["teal"], _C["orange"], _C["violet"]]
     for i, pt in enumerate(method_points):
         fig.add_trace(go.Scatter(
-            x=[pt["vol"]], y=[pt["ret"]], mode="markers+text",
-            name=pt["method"], text=[pt["method"]], textposition="top center",
-            textfont=dict(size=9, color=_C["muted"]),
-            marker=dict(size=11, color=palette[i % len(palette)],
-                        line=dict(width=1.2, color=_C["bg"])),
+            x=[pt["vol"]], y=[pt["ret"]], mode="markers",
+            name=pt["method"],
+            marker=dict(
+                size=11,
+                color=palette[i % len(palette)],
+                line=dict(width=1.2, color=_C["bg"]),
+            ),
+            hovertemplate=f"{pt['method']}<br>Vol %{{x:.1%}}<br>Ret %{{y:.1%}}<extra></extra>",
         ))
     fig.update_xaxes(title_text="Volatilidade Anualizada", tickformat=".0%")
     fig.update_yaxes(title_text="Retorno Esperado Anualizado", tickformat=".0%")
-    fig = _apply_theme(fig, title, height=480, subtitle=note)
+    fig = _apply_theme(fig, title, height=480, subtitle=note, legend="bottom")
     return fig
