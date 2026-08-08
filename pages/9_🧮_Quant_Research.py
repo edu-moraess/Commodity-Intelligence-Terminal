@@ -12,8 +12,8 @@ from utils.export import download_dataframe
 
 st.title("🧮 Quant Research")
 st.caption(
-    "Família GARCH (GARCH / EGARCH / GJR / APARCH), seleção automática por AIC/BIC, "
-    "forecast multi-horizonte e comparação de modelos de tendência via walk-forward."
+    "Família GARCH, walk-forward de tendência e **density backtest** out-of-sample "
+    "(CRPS / PIT / coverage) para ranking de métodos Monte Carlo."
 )
 
 asset_names = {a.name: a for a in ALL_ASSETS}
@@ -171,42 +171,7 @@ if st.button("Rodar Walk-Forward Validation", type="primary", key="wf_btn"):
                 close, train_window=train_window, n_folds=n_folds
             )
         else:
-            log_close = np.log(close.dropna().values)
-            registry = getattr(fc, "MODEL_REGISTRY", {})
-            results = {name: {"mae": [], "rmse": []} for name in registry}
-            total_len = len(log_close)
-            fold_starts = np.linspace(train_window, total_len - 2, n_folds, dtype=int)
-            progress = st.progress(0.0, text="Rodando folds...")
-            for i, start in enumerate(fold_starts):
-                y_train = log_close[start - train_window:start]
-                X_train = np.arange(train_window).reshape(-1, 1)
-                y_true_next = log_close[start]
-                X_next = np.array([[train_window]])
-                for name, base_model in registry.items():
-                    from sklearn.base import clone
-                    try:
-                        model = clone(base_model)
-                        model.fit(X_train, y_train)
-                        pred = model.predict(X_next)[0]
-                        err = np.exp(pred) - np.exp(y_true_next)
-                        results[name]["mae"].append(abs(err))
-                        results[name]["rmse"].append(err ** 2)
-                    except Exception:
-                        continue
-                progress.progress((i + 1) / len(fold_starts), text=f"Fold {i+1}/{len(fold_starts)}")
-            progress.empty()
-            summary = []
-            for name, r in results.items():
-                if not r["mae"]:
-                    continue
-                summary.append({
-                    "Modelo": name,
-                    "MAE (1-step)": np.mean(r["mae"]),
-                    "RMSE (1-step)": np.sqrt(np.mean(r["rmse"])),
-                })
-            df_summary = pd.DataFrame(summary)
-            if not df_summary.empty:
-                df_summary = df_summary.sort_values("RMSE (1-step)").reset_index(drop=True)
+            df_summary = pd.DataFrame()
 
     if df_summary is not None and not df_summary.empty:
         fmt = {}
@@ -222,9 +187,105 @@ if st.button("Rodar Walk-Forward Validation", type="primary", key="wf_btn"):
 else:
     st.info("Configure os parâmetros e clique em **Rodar Walk-Forward Validation**.")
 
+# ============================================================
+# FASE 4 — DENSITY BACKTEST (CRPS / PIT)
+# ============================================================
+st.divider()
+st.subheader("Density Backtest — Ranking de Métodos MC (CRPS / PIT)")
+st.caption(
+    "Walk-forward densitário **sem look-ahead**: em cada fold, o MC usa apenas histórico até t "
+    "e é avaliado no preço realizado em t+h. Menor Mean CRPS = melhor. "
+    "PIT ~ U(0,1) indica calibração."
+)
+
+col_h, col_f, col_s = st.columns(3)
+with col_h:
+    dens_horizon = st.selectbox("Horizonte densitário (dias)", [1, 5, 10, 21], index=1)
+with col_f:
+    dens_folds = st.slider("Folds densitários", 5, 20, 10)
+with col_s:
+    dens_sims = st.select_slider("Sims por fold", options=[100, 200, 300, 500], value=300)
+
+if st.button("Rodar Density Backtest (CRPS/PIT)", type="primary", key="dens_btn"):
+    if not hasattr(fc, "walk_forward_density_backtest"):
+        st.error("`walk_forward_density_backtest` não disponível — atualize forecasting/density_backtest.py.")
+    else:
+        with st.spinner("Walk-forward densitário em andamento (pode levar 1–2 min)..."):
+            try:
+                result = fc.walk_forward_density_backtest(
+                    close,
+                    horizon_days=int(dens_horizon),
+                    n_folds=int(dens_folds),
+                    min_train=max(120, train_window),
+                    n_sims=int(dens_sims),
+                    seed=42,
+                )
+            except Exception as exc:
+                st.error(f"Falha no density backtest: {exc}")
+                result = None
+
+        if result is not None and not result["ranking"].empty:
+            ranking = result["ranking"]
+            st.success(
+                f"Melhor método por Mean CRPS: **{result.get('best_method')}** "
+                f"({result['n_folds']} folds · h={result['horizon_days']}d)"
+            )
+
+            fmt = {
+                "Mean CRPS": "{:.4f}",
+                "Median CRPS": "{:.4f}",
+                "Coverage 80%": "{:.1%}",
+                "Coverage 90%": "{:.1%}",
+                "Avg Width 90%": "{:.2f}",
+                "PIT mean": "{:.3f}",
+                "PIT KS p-value": "{:.4f}",
+            }
+            st.dataframe(
+                ranking.style.format(fmt, na_rep="—"),
+                width="stretch",
+                hide_index=True,
+            )
+            download_dataframe(ranking, filename_stem="density_backtest_ranking")
+
+            # PIT diagnostics
+            pit_map = result.get("pit_by_method", {})
+            if pit_map:
+                st.subheader("Diagnóstico PIT por método")
+                pit_rows = []
+                for m, d in pit_map.items():
+                    pit_rows.append({
+                        "Método": m,
+                        "PIT mean": d.get("mean"),
+                        "PIT std": d.get("std"),
+                        "KS stat": d.get("ks_stat"),
+                        "KS p-value": d.get("ks_pvalue"),
+                        "Calibrado (p>0.05)": d.get("uniform_ok"),
+                    })
+                pit_df = pd.DataFrame(pit_rows)
+                st.dataframe(
+                    pit_df.style.format({
+                        "PIT mean": "{:.3f}",
+                        "PIT std": "{:.3f}",
+                        "KS stat": "{:.3f}",
+                        "KS p-value": "{:.4f}",
+                    }, na_rep="—"),
+                    width="stretch",
+                    hide_index=True,
+                )
+
+            details = result.get("fold_details")
+            if details is not None and not details.empty and "crps" in details.columns:
+                st.subheader("CRPS por fold (detalhe)")
+                pivot = details.pivot_table(index="fold", columns="method", values="crps", aggfunc="mean")
+                st.dataframe(pivot.style.format("{:.4f}", na_rep="—"), width="stretch")
+        elif result is not None:
+            st.warning("Density backtest não produziu ranking (histórico insuficiente?).")
+else:
+    st.info("Clique em **Rodar Density Backtest** para rankear métodos MC por CRPS out-of-sample.")
+
 st.divider()
 st.caption(
-    "Modelos de tendência disponíveis (quando instalados): Linear, Ridge, Lasso, ElasticNet, "
-    "RandomForest, XGBoost, LightGBM, CatBoost. "
-    "Família GARCH requer pacote `arch`. Roadmap: VAR/VECM, Kalman, LSTM/TFT, SHAP."
-) 
+    "Modelos de tendência: Linear, Ridge, Lasso, ElasticNet, RandomForest (+ boosting se instalado). "
+    "Família GARCH requer `arch`. Density backtest: Gneiting & Raftery (2007), Diebold et al. (1998). "
+    "Roadmap: Diebold-Mariano test, ensemble ponderado por CRPS, regime-conditional densities."
+)
