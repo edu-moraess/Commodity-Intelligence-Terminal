@@ -81,7 +81,6 @@ with st.spinner("Carregando dados e simulando cenários..."):
             block_size=block_size,
         )
     except TypeError:
-        # fallback de compatibilidade
         scenario = fc.scenario_summary(close, horizon_days, n_sims=n_sims, method=mc_method)
 
     if auto_trend and hasattr(fc, "select_best_trend_model"):
@@ -124,10 +123,14 @@ if "prob_baixa" in scenario:
 
 ic = scenario.get("intervalo_confianca_90", (np.nan, np.nan))
 block_used = scenario.get("block_size_used")
+try:
+    block_disp = f"{float(block_used):.0f}" if block_used is not None and np.isfinite(float(block_used)) else "—"
+except (TypeError, ValueError):
+    block_disp = "—"
 st.caption(
     f"Método MC: **{scenario.get('method', mc_method)}** · "
     f"Seed: **{scenario.get('seed', seed)}** · "
-    f"Block size: **{block_used if block_used is not None else '—'}** · "
+    f"Block size: **{block_disp}** · "
     f"IC 90%: [{ic[0]:.2f}, {ic[1]:.2f}] · "
     f"Tendência: **{trend_model}**"
 )
@@ -150,10 +153,14 @@ if any(k in scenario for k in ("prob_rompe_suporte", "prob_rompe_resistencia", "
         br1.metric("P(rompe suporte)", f"{scenario['prob_rompe_suporte']:.1%}")
         if "support" in scenario:
             br1.caption(f"Suporte ≈ {scenario['support']:.2f}")
+        if scenario.get("prob_rompe_suporte_path") is not None:
+            br1.caption(f"Path-dep: {scenario['prob_rompe_suporte_path']:.1%}")
     if "prob_rompe_resistencia" in scenario:
         br2.metric("P(rompe resistência)", f"{scenario['prob_rompe_resistencia']:.1%}")
         if "resistance" in scenario:
             br2.caption(f"Resistência ≈ {scenario['resistance']:.2f}")
+        if scenario.get("prob_rompe_resistencia_path") is not None:
+            br2.caption(f"Path-dep: {scenario['prob_rompe_resistencia_path']:.1%}")
     if "prob_acima_sma20" in scenario:
         br3.metric("P(acima SMA20)", f"{scenario['prob_acima_sma20']:.1%}")
     if "prob_acima_bb_upper" in scenario:
@@ -205,19 +212,36 @@ st.caption("Roda Stationary Block Bootstrap, GBM, Jump Diffusion, Student-t e GA
 if st.button("Comparar métodos Monte Carlo", type="primary"):
     if hasattr(fc, "compare_monte_carlo_methods"):
         with st.spinner("Simulando todos os métodos..."):
-            cmp = fc.compare_monte_carlo_methods(
-                close, horizon_days=horizon_days, n_sims=min(n_sims, 1500), seed=int(seed)
-            )
+            try:
+                cmp = fc.compare_monte_carlo_methods(
+                    close, horizon_days=horizon_days, n_sims=min(int(n_sims), 1500), seed=int(seed)
+                )
+            except Exception as exc:
+                st.error(f"Falha na comparação de métodos: {exc}")
+                cmp = None
         if cmp is not None and not cmp.empty:
-            fmt = {}
-            for c in cmp.columns:
-                if c == "Método":
-                    continue
-                if "P(" in c or "Return" in c or "Skew" in c or "Kurt" in c or "p-value" in c or "JB" in c:
-                    fmt[c] = "{:.3f}"
-                else:
-                    fmt[c] = "{:.2f}"
-            st.dataframe(cmp.style.format(fmt, na_rep="—"), width="stretch", hide_index=True)
+            # Formatação segura: só colunas numéricas, sem Styler se houver coluna Erro
+            display = cmp.copy()
+            num_cols = [
+                c for c in display.columns
+                if c not in ("Método", "Erro") and pd.api.types.is_numeric_dtype(display[c])
+            ]
+            for c in num_cols:
+                display[c] = pd.to_numeric(display[c], errors="coerce")
+            try:
+                st.dataframe(
+                    display.style.format(
+                        {c: "{:.3f}" if any(k in c for k in ("P(", "Return", "Skew", "Kurt", "p-value", "JB"))
+                               else "{:.2f}"
+                         for c in num_cols},
+                        na_rep="—",
+                    ),
+                    width="stretch",
+                    hide_index=True,
+                )
+            except Exception:
+                # Fallback sem Styler
+                st.dataframe(display, width="stretch", hide_index=True)
         else:
             st.warning("Comparação não retornou resultados.")
     else:
@@ -228,7 +252,7 @@ st.info(
     "Stationary Block Bootstrap (Politis & Romano) preserva autocorrelação e clusters de vol "
     "com block length automático via ACF. "
     "GBM assume retornos i.i.d. normais. "
-    "Jump Diffusion (Merton) adiciona saltos poissonianos. "
+    "Jump Diffusion (Merton) adiciona saltos poissonianos (parâmetros auto-calibrados). "
     "Student-t captura caudas pesadas. "
     "GARCH-MC usa recursão real de volatilidade condicional. "
     "Nenhum método incorpora eventos geopolíticos ou de oferta/demanda fora do padrão histórico recente.",
