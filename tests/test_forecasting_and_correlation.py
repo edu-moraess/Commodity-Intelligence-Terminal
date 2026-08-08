@@ -108,7 +108,10 @@ def test_scenario_summary_exposes_seed_and_block_size(sample_close):
     s = fc.scenario_summary(sample_close, horizon_days=20, n_sims=200, method="block_bootstrap", seed=99)
     assert s.get("seed") == 99
     assert "block_size_used" in s
-    assert s["block_size_used"] is None or (3 <= s["block_size_used"] <= 20)
+    bl = s["block_size_used"]
+    assert bl is not None
+    assert np.isfinite(float(bl))
+    assert 3 <= float(bl) <= 20
 
 
 def test_compare_methods_includes_garch_mc(sample_close):
@@ -123,3 +126,10 @@ def test_all_mc_methods_produce_positive_prices(sample_close):
             sample_close, horizon_days=10, n_sims=50, method=method, seed=7
         )
         assert (paths > 0).all(), f"{method} gerou preços não-positivos"
+
+
+def test_mc_input_validation_rejects_bad_horizon(sample_close):
+    with pytest.raises(ValueError):
+        fc.monte_carlo_paths(sample_close, horizon_days=0, n_sims=50)
+    with pytest.raises(ValueError):
+        fc.monte_carlo_paths(sample_close, horizon_days=10, n_sims=5)
