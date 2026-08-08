@@ -78,6 +78,8 @@ except ImportError:
 # Registry de modelos de tendência / regressão
 # ---------------------------------------------------------------------------
 
+_TREE_MODELS = {"RandomForest", "XGBoost", "LightGBM", "CatBoost"}
+
 def _build_model_registry() -> dict[str, Any]:
     reg: dict[str, Any] = {
         "Linear": LinearRegression(),
@@ -112,7 +114,58 @@ MODEL_REGISTRY = _build_model_registry()
 
 
 # ---------------------------------------------------------------------------
-# Trend forecast (legado + expandido)
+# Feature engineering para modelos de árvore / boosting
+# ---------------------------------------------------------------------------
+
+def _make_trend_features(log_prices: np.ndarray, max_lag: int = 5) -> np.ndarray:
+    """Constrói matriz de features a partir de log-preços.
+
+    Features:
+      - lag 1..max_lag do log-preço
+      - retorno 1d, 5d
+      - rolling vol 5d e 20d (std dos retornos)
+      - momentum 10d (log_p_t - log_p_{t-10})
+      - índice temporal normalizado (tendência residual)
+
+    Retorna X com shape (n - max(20, max_lag), n_features) alinhado ao final da série.
+    """
+    n = len(log_prices)
+    min_hist = max(20, max_lag + 1)
+    if n < min_hist + 5:
+        # fallback: só índice temporal
+        return np.arange(n).reshape(-1, 1).astype(float)
+
+    rets = np.diff(log_prices, prepend=log_prices[0])
+    features = []
+    valid_idx = []
+
+    for t in range(min_hist, n):
+        row = []
+        # lags de log-preço
+        for lag in range(1, max_lag + 1):
+            row.append(log_prices[t - lag])
+        # retornos
+        row.append(rets[t])                    # 1d
+        row.append(log_prices[t] - log_prices[t - 5])  # 5d
+        # rolling vol
+        row.append(np.std(rets[t - 5:t + 1]) + 1e-8)
+        row.append(np.std(rets[max(0, t - 20):t + 1]) + 1e-8)
+        # momentum 10d
+        row.append(log_prices[t] - log_prices[t - 10] if t >= 10 else 0.0)
+        # tendência residual (índice normalizado)
+        row.append(t / n)
+        features.append(row)
+        valid_idx.append(t)
+
+    return np.asarray(features, dtype=float), np.asarray(valid_idx)
+
+
+def _is_tree_model(name: str) -> bool:
+    return name in _TREE_MODELS
+
+
+# ---------------------------------------------------------------------------
+# Trend forecast (legado + feature-based para trees)
 # ---------------------------------------------------------------------------
 
 def trend_forecast(
@@ -121,19 +174,17 @@ def trend_forecast(
     model_name: str = "Linear",
     lookback: int = 252,
 ) -> pd.Series:
-    """Ajusta log(preço) ~ t e projeta horizon_days à frente.
+    """Projeta horizon_days à frente.
 
-    Nota Quant Dev: modelos de árvore/boosting aqui usam apenas o índice
-    temporal como feature (legado). Para uso preditivo real de RF/XGB,
-    prefira pipelines com lags + vol features (roadmap Fase 2).
+    - Modelos lineares (Linear/Ridge/Lasso/ElasticNet): log(preço) ~ tempo
+    - Modelos de árvore/boosting: features reais (lags + vol + momentum)
+      com projeção recursiva 1-step.
     """
     hist = close.tail(lookback).dropna()
-    if len(hist) < 10:
+    if len(hist) < 30:
         raise ValueError("Histórico insuficiente para trend_forecast.")
 
-    y = np.log(hist.values)
-    X = np.arange(len(hist)).reshape(-1, 1)
-
+    log_hist = np.log(hist.values)
     registry = _build_model_registry()
     model = registry.get(model_name, LinearRegression())
     if hasattr(model, "get_params"):
@@ -143,13 +194,47 @@ def trend_forecast(
         except Exception:
             pass
 
-    model.fit(X, y)
-    future_X = np.arange(len(hist), len(hist) + horizon_days).reshape(-1, 1)
-    pred_log = model.predict(future_X)
-    pred = np.exp(pred_log)
-
     future_dates = pd.bdate_range(start=hist.index[-1] + pd.Timedelta(days=1), periods=horizon_days)
-    return pd.Series(pred, index=future_dates, name=f"forecast_{model_name.lower()}")
+
+    if not _is_tree_model(model_name):
+        # --- caminho clássico: tempo como única feature ---
+        y = log_hist
+        X = np.arange(len(hist)).reshape(-1, 1)
+        model.fit(X, y)
+        future_X = np.arange(len(hist), len(hist) + horizon_days).reshape(-1, 1)
+        pred_log = model.predict(future_X)
+        pred = np.exp(pred_log)
+        return pd.Series(pred, index=future_dates, name=f"forecast_{model_name.lower()}")
+
+    # --- caminho feature-based (RF / XGB / LGBM / CatBoost) ---
+    feat_result = _make_trend_features(log_hist)
+    if isinstance(feat_result, tuple):
+        X_feat, valid_idx = feat_result
+        y_feat = log_hist[valid_idx]
+    else:
+        # fallback extremo
+        X_feat = np.arange(len(hist)).reshape(-1, 1)
+        y_feat = log_hist
+
+    model.fit(X_feat, y_feat)
+
+    # Projeção recursiva 1-step
+    log_series = list(log_hist)
+    preds = []
+    for h in range(horizon_days):
+        # reconstrói features no ponto atual
+        current = np.array(log_series)
+        feat_result_h = _make_trend_features(current)
+        if isinstance(feat_result_h, tuple):
+            X_h, _ = feat_result_h
+            x_next = X_h[-1:].copy()
+        else:
+            x_next = np.array([[len(log_series)]])
+        pred_log = float(model.predict(x_next)[0])
+        preds.append(np.exp(pred_log))
+        log_series.append(pred_log)
+
+    return pd.Series(preds, index=future_dates, name=f"forecast_{model_name.lower()}")
 
 
 def _mape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -175,8 +260,12 @@ def walk_forward_validation(
     n_folds: int = 15,
     models: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Walk-forward 1-step ahead. Retorna ranking de modelos por RMSE."""
-    log_close = np.log(close.dropna().values)
+    """Walk-forward 1-step ahead. Retorna ranking de modelos por RMSE.
+
+    Modelos de árvore usam features (lags + vol); lineares usam tempo.
+    """
+    prices = close.dropna().values
+    log_close = np.log(prices)
     total_len = len(log_close)
     if total_len < train_window + n_folds + 5:
         n_folds = max(3, total_len - train_window - 2)
@@ -189,10 +278,8 @@ def walk_forward_validation(
     results: dict[str, dict[str, list]] = {m: {"mae": [], "rmse": [], "preds": [], "trues": []} for m in models}
 
     for start in fold_starts:
-        y_train = log_close[start - train_window:start]
-        X_train = np.arange(train_window).reshape(-1, 1)
         y_true_next = log_close[start]
-        X_next = np.array([[train_window]])
+        true_price = np.exp(y_true_next)
 
         for name in models:
             if name not in registry:
@@ -202,14 +289,34 @@ def walk_forward_validation(
                 model = clone(registry[name])
             except Exception:
                 model = registry[name]
+
             try:
-                model.fit(X_train, y_train)
-                pred = model.predict(X_next)[0]
-                err = np.exp(pred) - np.exp(y_true_next)
+                if _is_tree_model(name):
+                    # features no trecho de treino
+                    train_log = log_close[start - train_window:start]
+                    feat_result = _make_trend_features(train_log)
+                    if isinstance(feat_result, tuple):
+                        X_train, valid_idx = feat_result
+                        y_train = train_log[valid_idx]
+                        if len(y_train) < 10:
+                            continue
+                        model.fit(X_train, y_train)
+                        x_next = X_train[-1:].copy()
+                        pred_log = float(model.predict(x_next)[0])
+                    else:
+                        continue
+                else:
+                    y_train = log_close[start - train_window:start]
+                    X_train = np.arange(train_window).reshape(-1, 1)
+                    model.fit(X_train, y_train)
+                    pred_log = float(model.predict(np.array([[train_window]]))[0])
+
+                pred_price = np.exp(pred_log)
+                err = pred_price - true_price
                 results[name]["mae"].append(abs(err))
                 results[name]["rmse"].append(err ** 2)
-                results[name]["preds"].append(np.exp(pred))
-                results[name]["trues"].append(np.exp(y_true_next))
+                results[name]["preds"].append(pred_price)
+                results[name]["trues"].append(true_price)
             except Exception:
                 continue
 
