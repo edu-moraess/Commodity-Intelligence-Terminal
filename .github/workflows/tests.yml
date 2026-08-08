@@ -22,5 +22,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Run pytest
-        run: pytest tests/ -v --tb=short
+      - name: Run pytest with coverage
+        run: |
+          pytest tests/ -v --tb=short \
+            --cov=forecasting --cov=analytics \
+            --cov-report=term-missing \
+            --cov-fail-under=0
