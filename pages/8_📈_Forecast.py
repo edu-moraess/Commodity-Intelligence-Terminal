@@ -2,10 +2,17 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 
-from config.settings import ALL_ASSETS, FORECAST_HORIZONS, APP_NAME
+from config.settings import ALL_ASSETS, FORECAST_HORIZONS, APP_NAME, APP_VERSION
 from data.data_manager import load_price_history
 from forecasting import models as fc
 from charts import plotly_charts as charts
+
+try:
+    from forecasting.scenario_cache import scenario_summary_cached
+    _HAS_CACHE = True
+except ImportError:
+    _HAS_CACHE = False
+    scenario_summary_cached = None
 
 st.title("📈 Forecast — Cenários Probabilísticos")
 st.caption(
@@ -18,7 +25,6 @@ asset_names = {a.name: a for a in ALL_ASSETS}
 selected_name = st.selectbox("Ativo", list(asset_names.keys()))
 asset = asset_names[selected_name]
 
-# ---- Controles ----
 col_h, col_n, col_method = st.columns(3)
 with col_h:
     horizon_label = st.selectbox("Horizonte", list(FORECAST_HORIZONS.keys()), index=1)
@@ -35,7 +41,6 @@ with col_method:
     mc_label = st.selectbox("Método Monte Carlo", list(mc_methods.keys()), index=0)
     mc_method = mc_methods[mc_label]
 
-# Controles avançados de reprodutibilidade
 col_seed, col_block = st.columns(2)
 with col_seed:
     seed = st.number_input("Seed (reprodutibilidade)", min_value=0, max_value=999999, value=42, step=1)
@@ -49,7 +54,6 @@ block_size = None if block_size_input == 0 else int(block_size_input)
 
 horizon_days = FORECAST_HORIZONS[horizon_label]
 
-# Modelos de tendência disponíveis
 trend_options = ["Linear", "Ridge", "Lasso", "ElasticNet", "RandomForest"]
 registry = getattr(fc, "MODEL_REGISTRY", None)
 if registry is None and hasattr(fc, "_build_model_registry"):
@@ -72,16 +76,30 @@ with st.spinner("Carregando dados e simulando cenários..."):
     close = pdat.df["Close"]
 
     try:
-        scenario = fc.scenario_summary(
-            close,
-            horizon_days,
-            n_sims=n_sims,
-            method=mc_method,
-            seed=int(seed),
-            block_size=block_size,
-        )
+        if _HAS_CACHE and scenario_summary_cached is not None:
+            scenario = scenario_summary_cached(
+                close,
+                horizon_days,
+                n_sims=n_sims,
+                method=mc_method,
+                seed=int(seed),
+                block_size=block_size,
+                cache_key=asset.ticker,
+            )
+        else:
+            scenario = fc.scenario_summary(
+                close,
+                horizon_days,
+                n_sims=n_sims,
+                method=mc_method,
+                seed=int(seed),
+                block_size=block_size,
+            )
     except TypeError:
         scenario = fc.scenario_summary(close, horizon_days, n_sims=n_sims, method=mc_method)
+    except Exception as exc:
+        st.error(f"Falha no Monte Carlo: {exc}")
+        st.stop()
 
     if auto_trend and hasattr(fc, "select_best_trend_model"):
         best_name, ranking = fc.select_best_trend_model(close, train_window=120, n_folds=10)
@@ -92,7 +110,6 @@ with st.spinner("Carregando dados e simulando cenários..."):
 if pdat.is_synthetic:
     st.warning("⚠️ Base de preço **simulada** — projeções abaixo herdam essa limitação.", icon="⚠️")
 
-# ---- Métricas principais ----
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Preço Atual", f"{scenario['preco_atual']:.2f}")
 c2.metric(
@@ -127,12 +144,14 @@ try:
     block_disp = f"{float(block_used):.0f}" if block_used is not None and np.isfinite(float(block_used)) else "—"
 except (TypeError, ValueError):
     block_disp = "—"
+fp = scenario.get("cache_fingerprint", "—")
 st.caption(
     f"Método MC: **{scenario.get('method', mc_method)}** · "
     f"Seed: **{scenario.get('seed', seed)}** · "
     f"Block size: **{block_disp}** · "
     f"IC 90%: [{ic[0]:.2f}, {ic[1]:.2f}] · "
-    f"Tendência: **{trend_model}**"
+    f"Tendência: **{trend_model}** · "
+    f"v{scenario.get('app_version', APP_VERSION)} · fp:`{fp}`"
 )
 
 st.plotly_chart(
@@ -145,7 +164,6 @@ st.plotly_chart(
     width="stretch",
 )
 
-# ---- Probabilidades de rompimento ----
 if any(k in scenario for k in ("prob_rompe_suporte", "prob_rompe_resistencia", "prob_acima_sma20")):
     st.subheader("Probabilidades de Rompimento")
     br1, br2, br3, br4 = st.columns(4)
@@ -153,13 +171,13 @@ if any(k in scenario for k in ("prob_rompe_suporte", "prob_rompe_resistencia", "
         br1.metric("P(rompe suporte)", f"{scenario['prob_rompe_suporte']:.1%}")
         if "support" in scenario:
             br1.caption(f"Suporte ≈ {scenario['support']:.2f}")
-        if scenario.get("prob_rompe_suporte_path") is not None:
+        if scenario.get("prob_rompe_suporte_path") is not None and np.isfinite(scenario.get("prob_rompe_suporte_path", np.nan)):
             br1.caption(f"Path-dep: {scenario['prob_rompe_suporte_path']:.1%}")
     if "prob_rompe_resistencia" in scenario:
         br2.metric("P(rompe resistência)", f"{scenario['prob_rompe_resistencia']:.1%}")
         if "resistance" in scenario:
             br2.caption(f"Resistência ≈ {scenario['resistance']:.2f}")
-        if scenario.get("prob_rompe_resistencia_path") is not None:
+        if scenario.get("prob_rompe_resistencia_path") is not None and np.isfinite(scenario.get("prob_rompe_resistencia_path", np.nan)):
             br2.caption(f"Path-dep: {scenario['prob_rompe_resistencia_path']:.1%}")
     if "prob_acima_sma20" in scenario:
         br3.metric("P(acima SMA20)", f"{scenario['prob_acima_sma20']:.1%}")
@@ -168,7 +186,6 @@ if any(k in scenario for k in ("prob_rompe_suporte", "prob_rompe_resistencia", "
     if "prob_abaixo_bb_lower" in scenario:
         st.caption(f"P(abaixo BB lower): {scenario['prob_abaixo_bb_lower']:.1%}")
 
-# ---- Diagnósticos de distribuição ----
 if "skewness" in scenario:
     st.subheader("Diagnóstico da Distribuição Simulada")
     d1, d2, d3, d4 = st.columns(4)
@@ -220,7 +237,6 @@ if st.button("Comparar métodos Monte Carlo", type="primary"):
                 st.error(f"Falha na comparação de métodos: {exc}")
                 cmp = None
         if cmp is not None and not cmp.empty:
-            # Formatação segura: só colunas numéricas, sem Styler se houver coluna Erro
             display = cmp.copy()
             num_cols = [
                 c for c in display.columns
@@ -240,12 +256,11 @@ if st.button("Comparar métodos Monte Carlo", type="primary"):
                     hide_index=True,
                 )
             except Exception:
-                # Fallback sem Styler
                 st.dataframe(display, width="stretch", hide_index=True)
         else:
             st.warning("Comparação não retornou resultados.")
     else:
-        st.info("Função `compare_monte_carlo_methods` não disponível — atualize forecasting/models.py.")
+        st.info("Função `compare_monte_carlo_methods` não disponível.")
 
 st.info(
     f"**Metodologia ativa:** {mc_label}. "
@@ -255,6 +270,6 @@ st.info(
     "Jump Diffusion (Merton) adiciona saltos poissonianos (parâmetros auto-calibrados). "
     "Student-t captura caudas pesadas. "
     "GARCH-MC usa recursão real de volatilidade condicional. "
-    "Nenhum método incorpora eventos geopolíticos ou de oferta/demanda fora do padrão histórico recente.",
+    "Cenários com cache de produção (TTL) quando parâmetros não mudam.",
     icon="ℹ️",
 )
