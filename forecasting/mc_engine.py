@@ -1,9 +1,15 @@
-"""Monte Carlo engine — Stationary Bootstrap, GBM, Jump, GARCH-MC, Student-t."""
+"""Monte Carlo engine — Stationary Bootstrap, GBM, Jump, GARCH-MC, Student-t.
+
+Fase 3: performance (bootstrap via matriz de índices), observabilidade (@timed),
+validação de inputs.
+"""
 from __future__ import annotations
-import warnings
+
 from typing import Any
+
 import numpy as np
 import pandas as pd
+
 from analytics.metrics import daily_returns
 
 try:
@@ -11,6 +17,17 @@ try:
     _HAS_JUMP_CAL = True
 except ImportError:
     _HAS_JUMP_CAL = False
+
+try:
+    from utils.logger import get_logger, timed
+    _log = get_logger("mc_engine")
+except ImportError:
+    _log = None
+
+    def timed(label=None):  # type: ignore
+        def deco(fn):
+            return fn
+        return deco
 
 
 def _optimal_block_length(rets: np.ndarray, max_lag: int = 40) -> int:
@@ -35,26 +52,29 @@ def _optimal_block_length(rets: np.ndarray, max_lag: int = 40) -> int:
     return int(np.clip(opt, 3, 20))
 
 
-def _stationary_bootstrap_path(
-    rets: np.ndarray,
+def _stationary_bootstrap_indices(
+    n: int,
     horizon: int,
+    n_sims: int,
     p: float,
     rng: np.random.Generator,
 ) -> np.ndarray:
-    """Stationary Bootstrap (Politis & Romano 1994)."""
-    n = len(rets)
-    path = np.empty(horizon)
-    t = 0
+    """Gera matriz (n_sims, horizon) de índices via Stationary Bootstrap.
+
+    Mais rápido que path-a-path com appends: pré-aloca e preenche em blocos.
+    """
     p = float(np.clip(p, 1e-6, 1.0))
-    while t < horizon:
-        start = int(rng.integers(0, n))
-        length = int(rng.geometric(p))
-        for j in range(length):
-            if t >= horizon:
-                break
-            path[t] = rets[(start + j) % n]
-            t += 1
-    return path
+    idx = np.empty((n_sims, horizon), dtype=np.int64)
+    for i in range(n_sims):
+        t = 0
+        while t < horizon:
+            start = int(rng.integers(0, n))
+            length = int(rng.geometric(p))
+            end = min(t + length, horizon)
+            span = end - t
+            idx[i, t:end] = (start + np.arange(span)) % n
+            t = end
+    return idx
 
 
 def _fit_garch11_simple(rets: np.ndarray) -> tuple[float, float, float, float]:
@@ -86,6 +106,16 @@ def _fit_garch11_simple(rets: np.ndarray) -> tuple[float, float, float, float]:
     return float(omega), float(alpha), float(beta), last_sigma
 
 
+def _validate_mc_inputs(close: pd.Series, horizon_days: int, n_sims: int) -> None:
+    if close is None or len(close.dropna()) < 10:
+        raise ValueError("Série de preços insuficiente (< 10 observações).")
+    if horizon_days < 1 or horizon_days > 504:
+        raise ValueError(f"horizon_days inválido: {horizon_days} (esperado 1–504).")
+    if n_sims < 10 or n_sims > 50_000:
+        raise ValueError(f"n_sims inválido: {n_sims} (esperado 10–50000).")
+
+
+@timed("monte_carlo_paths")
 def monte_carlo_paths(
     close: pd.Series,
     horizon_days: int,
@@ -102,6 +132,8 @@ def monte_carlo_paths(
     df_student: float = 5.0,
 ) -> np.ndarray:
     """Simula trajetórias de preço (Stationary Bootstrap / GBM / Jump / Student-t / GARCH-MC)."""
+    _validate_mc_inputs(close, horizon_days, n_sims)
+
     rets = daily_returns(close).tail(lookback).dropna().values
     if len(rets) < 20:
         rets = daily_returns(close).dropna().values
@@ -118,15 +150,13 @@ def monte_carlo_paths(
         if not np.isfinite(sigma) or sigma <= 0:
             sigma = 0.01
 
-    paths = np.zeros((n_sims, horizon_days))
-
     if method == "block_bootstrap":
         if block_size is None or block_size <= 0:
             block_size = _optimal_block_length(rets)
         p = 1.0 / max(float(block_size), 1.0)
-        for i in range(n_sims):
-            path_rets = _stationary_bootstrap_path(rets, horizon_days, p, rng)
-            paths[i] = s0 * np.exp(np.cumsum(path_rets))
+        idx = _stationary_bootstrap_indices(len(rets), horizon_days, n_sims, p, rng)
+        path_rets = rets[idx]
+        paths = s0 * np.exp(np.cumsum(path_rets, axis=1))
 
     elif method == "gbm":
         dt = 1.0
@@ -160,6 +190,7 @@ def monte_carlo_paths(
 
     elif method == "garch_mc":
         omega, alpha, beta, last_sigma = _fit_garch11_simple(rets)
+        paths = np.zeros((n_sims, horizon_days))
         for i in range(n_sims):
             z = rng.standard_normal(horizon_days)
             sigma_t = last_sigma
@@ -175,6 +206,7 @@ def monte_carlo_paths(
     return paths
 
 
+@timed("scenario_summary")
 def scenario_summary(
     close: pd.Series,
     horizon_days: int,
@@ -226,16 +258,14 @@ def scenario_summary(
     except Exception:
         jb_stat, jb_p = float("nan"), float("nan")
 
-    effective_block = block_size
-    if method == "block_bootstrap" and (block_size is None or block_size <= 0):
-        rets = daily_returns(close).tail(504).dropna().values
-        if len(rets) >= 20:
-            effective_block = _optimal_block_length(rets)
+    effective_block: float
+    if method == "block_bootstrap":
+        if block_size is None or block_size <= 0:
+            rets = daily_returns(close).tail(504).dropna().values
+            effective_block = float(_optimal_block_length(rets) if len(rets) >= 20 else 5)
         else:
-            effective_block = 5
-
-    # Nunca retornar None em campos numéricos (evita TypeError no Styler)
-    if effective_block is None:
+            effective_block = float(block_size)
+    else:
         effective_block = float("nan")
 
     return {
@@ -297,7 +327,7 @@ def compare_monte_carlo_methods(
                 close, horizon_days, n_sims=int(n_sims), method=m, seed=int(seed)
             )
             bl = s.get("block_size_used", np.nan)
-            if bl is None:
+            if bl is None or (isinstance(bl, float) and not np.isfinite(bl)):
                 bl = np.nan
             rows.append({
                 "Método": str(m),
