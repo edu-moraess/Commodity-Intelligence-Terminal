@@ -1,13 +1,12 @@
 """
-Commodity Intelligence Terminal — Configuração Central (v4.4.0)
+Commodity Intelligence Terminal — Configuração Central (v5.0.0)
 ================================================================
 Define o universo de ativos, mapeamento de tickers (Yahoo Finance / FRED),
 parâmetros de cache e constantes globais da aplicação.
 
-CHANGELOG v4.4.0:
-- Tickers sem liquidez no Yahoo (ALI=F, TIO=F) forçados para source="synthetic"
-  evitando retry demorado e timeout na inicialização.
-- TTLs diferenciados: PRICE=300s, MACRO=3600s, COMPUTE=900s (alias CACHE_TTL_SECONDS).
+CHANGELOG v5.0.0:
+- APP_VERSION para fingerprint de cache e health checks.
+- CACHE_TTL_SCENARIO para Monte Carlo em produção.
 """
 
 from dataclasses import dataclass
@@ -91,16 +90,18 @@ MACRO_SERIES: Dict[str, dict] = {
 }
 
 # --------------------------------------------------------------------------
-# PARÂMETROS GERAIS
+# PARÂMETROS GERAIS / PRODUÇÃO
 # --------------------------------------------------------------------------
 
 APP_NAME = "Commodity Intelligence Terminal"
 APP_ICON = "🛢️"
+APP_VERSION = "5.0.0"
 DEFAULT_LOOKBACK_DAYS = 730
 
 CACHE_TTL_PRICE = 300
 CACHE_TTL_MACRO = 3600
 CACHE_TTL_COMPUTE = 900
+CACHE_TTL_SCENARIO = 900
 CACHE_TTL_SECONDS = CACHE_TTL_COMPUTE
 
 RISK_FREE_RATE_ANNUAL = 0.045
@@ -114,23 +115,18 @@ FORECAST_HORIZONS = {
 }
 
 THEME = {
-    # Quant desk / algo terminal
     "background": "#080a0e",
     "surface": "#0f1319",
     "surface_alt": "#151b24",
     "border": "#1e2733",
     "text": "#e8eef6",
     "text_muted": "#8b97a8",
-
     "accent": "#4c9aff",
     "accent_amber": "#4c9aff",
-
     "positive": "#00c853",
     "negative": "#ff4d5a",
     "warning": "#f0a030",
-
     "ticker_bg": "#050608",
-
     "chart_extra_1": "#7c9cbf",
     "chart_extra_2": "#c4a35a",
 }
