@@ -9,8 +9,9 @@ from charts import plotly_charts as charts
 
 st.title("📈 Forecast — Cenários Probabilísticos")
 st.caption(
-    "Ensemble de tendência + Monte Carlo avançado (Block Bootstrap, GBM, Jump Diffusion, "
-    "Student-t). Cenários Base/Otimista/Pessimista, fan chart e probabilidades de rompimento."
+    "Ensemble de tendência + Monte Carlo avançado (Stationary Block Bootstrap, GBM, "
+    "Jump Diffusion, Student-t, GARCH-MC). Cenários Base/Otimista/Pessimista, fan chart "
+    "e probabilidades de rompimento."
 )
 
 asset_names = {a.name: a for a in ALL_ASSETS}
@@ -25,13 +26,26 @@ with col_n:
     n_sims = st.select_slider("Simulações Monte Carlo", options=[500, 1000, 2000, 5000], value=2000)
 with col_method:
     mc_methods = {
-        "Block Bootstrap": "block_bootstrap",
+        "Stationary Block Bootstrap": "block_bootstrap",
         "GBM": "gbm",
         "Jump Diffusion (Merton)": "jump_diffusion",
         "Student-t": "student_t",
+        "GARCH-MC": "garch_mc",
     }
     mc_label = st.selectbox("Método Monte Carlo", list(mc_methods.keys()), index=0)
     mc_method = mc_methods[mc_label]
+
+# Controles avançados de reprodutibilidade
+col_seed, col_block = st.columns(2)
+with col_seed:
+    seed = st.number_input("Seed (reprodutibilidade)", min_value=0, max_value=999999, value=42, step=1)
+with col_block:
+    block_size_input = st.number_input(
+        "Block size (0 = automático via ACF)",
+        min_value=0, max_value=30, value=0, step=1,
+        help="Usado apenas no Stationary Block Bootstrap. 0 = estimado automaticamente."
+    )
+block_size = None if block_size_input == 0 else int(block_size_input)
 
 horizon_days = FORECAST_HORIZONS[horizon_label]
 
@@ -59,10 +73,16 @@ with st.spinner("Carregando dados e simulando cenários..."):
 
     try:
         scenario = fc.scenario_summary(
-            close, horizon_days, n_sims=n_sims, method=mc_method
+            close,
+            horizon_days,
+            n_sims=n_sims,
+            method=mc_method,
+            seed=int(seed),
+            block_size=block_size,
         )
     except TypeError:
-        scenario = fc.scenario_summary(close, horizon_days, n_sims=n_sims)
+        # fallback de compatibilidade
+        scenario = fc.scenario_summary(close, horizon_days, n_sims=n_sims, method=mc_method)
 
     if auto_trend and hasattr(fc, "select_best_trend_model"):
         best_name, ranking = fc.select_best_trend_model(close, train_window=120, n_folds=10)
@@ -103,8 +123,11 @@ if "prob_baixa" in scenario:
     extra[3].metric("P(Baixa)", f"{scenario['prob_baixa']:.1%}")
 
 ic = scenario.get("intervalo_confianca_90", (np.nan, np.nan))
+block_used = scenario.get("block_size_used")
 st.caption(
     f"Método MC: **{scenario.get('method', mc_method)}** · "
+    f"Seed: **{scenario.get('seed', seed)}** · "
+    f"Block size: **{block_used if block_used is not None else '—'}** · "
     f"IC 90%: [{ic[0]:.2f}, {ic[1]:.2f}] · "
     f"Tendência: **{trend_model}**"
 )
@@ -177,13 +200,13 @@ st.plotly_chart(
 
 st.divider()
 st.subheader("Comparação de Métodos Monte Carlo")
-st.caption("Roda Block Bootstrap, GBM, Jump Diffusion e Student-t lado a lado.")
+st.caption("Roda Stationary Block Bootstrap, GBM, Jump Diffusion, Student-t e GARCH-MC lado a lado.")
 
 if st.button("Comparar métodos Monte Carlo", type="primary"):
     if hasattr(fc, "compare_monte_carlo_methods"):
         with st.spinner("Simulando todos os métodos..."):
             cmp = fc.compare_monte_carlo_methods(
-                close, horizon_days=horizon_days, n_sims=min(n_sims, 1500)
+                close, horizon_days=horizon_days, n_sims=min(n_sims, 1500), seed=int(seed)
             )
         if cmp is not None and not cmp.empty:
             fmt = {}
@@ -202,10 +225,12 @@ if st.button("Comparar métodos Monte Carlo", type="primary"):
 
 st.info(
     f"**Metodologia ativa:** {mc_label}. "
-    "Block Bootstrap preserva autocorrelação e clusters de vol. "
+    "Stationary Block Bootstrap (Politis & Romano) preserva autocorrelação e clusters de vol "
+    "com block length automático via ACF. "
     "GBM assume retornos i.i.d. normais. "
     "Jump Diffusion (Merton) adiciona saltos poissonianos. "
     "Student-t captura caudas pesadas. "
+    "GARCH-MC usa recursão real de volatilidade condicional. "
     "Nenhum método incorpora eventos geopolíticos ou de oferta/demanda fora do padrão histórico recente.",
     icon="ℹ️",
 )
