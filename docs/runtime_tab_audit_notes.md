@@ -27,3 +27,7 @@ Apesar da transparência sobre simulação e proxy, os cartões e a tabela de m�
 ## Tentativa de inspeção — Agriculture Analytics
 
 A navegação direta para `/Agriculture` falhou durante o carregamento e retornou uma página em branco. Por isso, a aba de agricultura será auditada pelo código-fonte e por uma nova tentativa de navegação a partir da aplicação raiz. A falha de roteamento/carregamento é, por si, um ponto que exige validação após o próximo deploy.
+
+## Verificação posterior — referências ainda visíveis na implantação publicada
+
+Na nova inspeção da URL publicada, a interface ainda exibiu `v5.0.0` no subtítulo da página inicial, no cartão informativo, no rodapé da barra lateral e no relógio global. Também continuou a apresentar o rótulo `MARKETS ONLINE` e o botão `Atualizar dados` antigos. Esses elementos correspondem ao código anterior à limpeza já registrada no repositório local; o commit local não foi enviado ao remoto e, portanto, a implantação publicada ainda não recebeu essas alterações.
