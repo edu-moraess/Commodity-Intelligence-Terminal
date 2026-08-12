@@ -9,6 +9,7 @@ from analytics import cached
 from forecasting import models as fc
 from charts import plotly_charts as charts
 from utils.export import download_dataframe
+from utils.data_status import render_price_data_disclosure
 
 st.title("🧮 Quant Research")
 st.caption(
@@ -24,8 +25,10 @@ with st.spinner("Carregando dados..."):
     pdat = load_price_history(asset)
 close = pdat.df["Close"]
 
-if pdat.is_synthetic:
-    st.warning("⚠️ Exibindo **dados simulados** — fonte ao vivo indisponível neste ambiente.", icon="⚠️")
+render_price_data_disclosure(
+    {asset.ticker: pdat},
+    title="Fonte e data da série usada na pesquisa quantitativa",
+)
 
 # ============================================================
 # CONTROLES GARCH

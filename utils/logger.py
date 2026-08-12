@@ -1,7 +1,7 @@
 """Logging estruturado para o Commodity Intelligence Terminal.
 
-Fase 3: decorator `timed` para medir latência de funções quant críticas
-(Monte Carlo, walk-forward, data load) sem acoplar a Streamlit.
+Decorator `timed` para medir a latência de funções quantitativas críticas
+(Monte Carlo, walk-forward e carga de dados) sem acoplamento à Streamlit.
 """
 
 from __future__ import annotations

@@ -14,7 +14,6 @@ NAO altera logica de negocio — apenas apresentacao.
 from __future__ import annotations
 
 from typing import Optional, List, Tuple
-from datetime import datetime, timezone, timedelta
 
 import streamlit as st
 
@@ -512,11 +511,7 @@ div[data-testid="stToolbar"] {
 
 
 def render_sidebar_brand() -> None:
-    """Branding + status + refresh no sidebar (visivel em todas as paginas)."""
-    brasilia_tz = timezone(timedelta(hours=-3))
-    now_brasilia = datetime.now(brasilia_tz)
-    stamp = now_brasilia.strftime("%d/%m/%Y %H:%M") + " BRT"
-
+    """Branding e limpeza explícita de cache no sidebar, em todas as páginas."""
     with st.sidebar:
         st.markdown(
             "<div class='cit-sidebar-brand'>"
@@ -526,19 +521,14 @@ def render_sidebar_brand() -> None:
             "<div class='cit-logo-title'>" + APP_NAME + "</div>"
             "</div>"
             "</div>"
-            "<div class='cit-status-chip'>"
-            "<span class='cit-status-dot'></span> Markets Online"
-            "</div>"
+            "<div class='cit-sidebar-meta'><div>Dados diários e séries macro publicadas</div></div>"
             "</div>",
             unsafe_allow_html=True,
         )
-        if st.button("Atualizar dados", use_container_width=True, key="cit_refresh_cache"):
+        if st.button("Atualizar séries", use_container_width=True, key="cit_refresh_cache"):
             st.cache_data.clear()
             st.rerun()
-        st.markdown(
-            "<div class='cit-sidebar-meta'><div>" + stamp + "</div></div>",
-            unsafe_allow_html=True,
-        )
+        st.caption("Confira fonte e data de referência em cada aba.")
 
 
 def page_header(

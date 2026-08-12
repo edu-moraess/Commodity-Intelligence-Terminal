@@ -6,6 +6,7 @@ from config.settings import ALL_ASSETS, MACRO_SERIES, APP_NAME
 from data.data_manager import load_price_history_bulk, load_macro_series, build_price_panel
 from analytics import correlation
 from charts import plotly_charts as charts
+from utils.data_status import render_macro_data_disclosure
 
 st.title("🔗 Macroeconomia & Correlações")
 st.caption(
@@ -33,22 +34,18 @@ with st.spinner("Carregando preços e séries macro..."):
         macro_data[meta["name"]] = series
         macro_synthetic_flags[meta["name"]] = is_synth
 
-if any(macro_synthetic_flags.values()):
-    synth_names = [k for k, v in macro_synthetic_flags.items() if v]
-    st.warning(
-        "⚠️ Séries macro simuladas (sem `FRED_API_KEY` ou API indisponível): "
-        + ", ".join(synth_names),
-        icon="⚠️",
-    )
+render_macro_data_disclosure(macro_data, macro_synthetic_flags, MACRO_SERIES)
 
 st.subheader("Snapshot Macro — Últimos Valores")
 snap_cols = st.columns(4)
 items = list(macro_data.items())
+frequency_by_name = {meta["name"]: meta.get("frequency", "Frequência não especificada") for meta in MACRO_SERIES.values()}
 for i, (name, series) in enumerate(items):
     col = snap_cols[i % 4]
     s = series.dropna()
     if s.empty:
         col.metric(name, "—")
+        col.caption("Referência: N/D")
         continue
     last = float(s.iloc[-1])
     if len(s) >= 22:
@@ -61,6 +58,11 @@ for i, (name, series) in enumerate(items):
             col.metric(name, f"{last:,.2f}", f"{delta:+.1%}")
     else:
         col.metric(name, f"{last:,.2f}")
+    source_label = "simulado" if macro_synthetic_flags.get(name, False) else "FRED"
+    col.caption(
+        f"{frequency_by_name.get(name, 'Frequência não especificada')} · "
+        f"ref.: {s.index[-1].strftime('%d/%m/%Y')} · {source_label}"
+    )
 
 st.divider()
 
@@ -197,6 +199,7 @@ else:
 
 st.divider()
 st.caption(
-    "Fontes: FRED. Configure FRED_API_KEY no secrets para dados ao vivo. "
-    "PMI ISM e Baltic Dry requerem fonte paga."
+    "Fonte macro: FRED. As datas exibidas representam a última publicação disponível "
+    "de cada série; elas não são cotações em tempo real. PMI ISM e Baltic Dry requerem "
+    "fonte paga."
 )

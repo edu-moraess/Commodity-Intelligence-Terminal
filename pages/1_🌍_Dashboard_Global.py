@@ -7,6 +7,11 @@ from data.data_manager import load_price_history_bulk
 from analytics import metrics, signals
 from charts import plotly_charts as charts
 from utils.export import download_dataframe
+from utils.data_status import (
+    format_observation_date,
+    price_source_label,
+    render_price_data_disclosure,
+)
 
 # --------------------------------------------------------------------------
 # CABEÇALHO
@@ -35,13 +40,7 @@ ALL_ASSETS = ENERGY_ASSETS + METALS_ASSETS + AGRI_ASSETS
 with st.spinner("Carregando universo global de ativos..."):
     price_data = load_price_history_bulk(ALL_ASSETS)
 
-n_synthetic = sum(1 for p in price_data.values() if p.is_synthetic)
-if n_synthetic:
-    st.warning(
-        f"⚠️ {n_synthetic}/{len(price_data)} ativos exibindo **dados simulados** "
-        "(fonte ao vivo indisponível neste ambiente). Badge 🔸 identifica cada caso.",
-        icon="⚠️",
-    )
+render_price_data_disclosure(price_data)
 
 # --------------------------------------------------------------------------
 # KPIs DE TOPO (4 ativos principais)
@@ -67,6 +66,9 @@ for col, (label, ticker) in zip(kpi_cols, kpi_tickers.items()):
     display_delta = f"{chg:+.2%}" if (chg is not None and pd.notna(chg)) else None
     with col:
         st.metric(label, display_price, display_delta)
+        st.caption(f"Referência: {format_observation_date(pdat.df)}")
+        if pdat.is_synthetic:
+            st.caption("🔸 Série simulada")
 
 st.divider()
 
@@ -80,6 +82,7 @@ def build_table(assets):
         if pdat is None or pdat.df.empty:
             rows.append({
                 "Ativo": a.name + " 🔸 (sem dados)", "Unidade": a.unit,
+                "Referência": "N/D", "Origem": "Sem dados disponíveis",
                 "Último": None, "1D": None, "1S": None, "1M": None, "YTD": None,
                 "Vol.Anual": None, "Sharpe": None, "Sortino": None,
                 "Max DD": None, "Calmar": None, "Momentum": None, "Tendência": "N/D",
@@ -90,6 +93,8 @@ def build_table(assets):
             rows.append({
                 "Ativo": a.name + (" 🔸" if pdat.is_synthetic else ""),
                 "Unidade": a.unit,
+                "Referência": format_observation_date(pdat.df),
+                "Origem": price_source_label(pdat),
                 "Último": close.iloc[-1] if not close.empty else None,
                 "1D": None, "1S": None, "1M": None, "YTD": None,
                 "Vol.Anual": None, "Sharpe": None, "Sortino": None,
@@ -101,6 +106,8 @@ def build_table(assets):
             rows.append({
                 "Ativo": a.name + (" 🔸" if pdat.is_synthetic else ""),
                 "Unidade": a.unit,
+                "Referência": format_observation_date(pdat.df),
+                "Origem": price_source_label(pdat),
                 "Último": row["last_price"],
                 "1D": row["chg_1d"], "1S": row["chg_1w"], "1M": row["chg_1m"], "YTD": row["chg_ytd"],
                 "Vol.Anual": row["vol_annual"], "Sharpe": row["sharpe"], "Sortino": row["sortino"],
@@ -110,6 +117,8 @@ def build_table(assets):
         except Exception:
             rows.append({
                 "Ativo": a.name + " 🔸 (erro)", "Unidade": a.unit,
+                "Referência": format_observation_date(pdat.df),
+                "Origem": price_source_label(pdat),
                 "Último": close.iloc[-1] if not close.empty else None,
                 "1D": None, "1S": None, "1M": None, "YTD": None,
                 "Vol.Anual": None, "Sharpe": None, "Sortino": None,
@@ -252,7 +261,9 @@ with st.expander("📐 Metodologia do Painel de Sinais"):
 
 st.divider()
 st.caption(
-    f"Fontes: Yahoo Finance · fallback sintético. Taxa livre de risco = {RISK_FREE_RATE_ANNUAL:.2%} a.a."
+    f"Preços: Yahoo Finance em frequência diária de fechamento, com séries simuladas "
+    f"explicitamente identificadas quando o provedor não responde. Taxa livre de risco = "
+    f"{RISK_FREE_RATE_ANNUAL:.2%} a.a."
 )
 with st.expander("📚 Referências Acadêmicas"):
     st.markdown("Sharpe (1966), Sortino & Price (1994), Campbell et al. (1997).") 

@@ -6,9 +6,7 @@ from config.settings import ALL_ASSETS, APP_NAME
 from data.data_manager import load_price_history
 from analytics import risk, metrics, backtesting, regimes, cached
 from charts import plotly_charts as charts
-
-# NOTA v4.5.0: st.set_page_config() removido daqui — agora é chamado
-# uma única vez em app.py, antes de st.navigation(...).run().
+from utils.data_status import render_price_data_disclosure
 
 st.title("⚠️ Risk Analytics")
 st.caption(
@@ -32,8 +30,10 @@ with col_window:
 with st.spinner("Carregando dados..."):
     pdat = load_price_history(asset)
 
-if pdat.is_synthetic:
-    st.warning("⚠️ Exibindo **dados simulados** — fonte ao vivo indisponível neste ambiente.", icon="⚠️")
+render_price_data_disclosure(
+    {asset.ticker: pdat},
+    title="Fonte e data da série usada no risco",
+)
 
 close = pdat.df["Close"]
 

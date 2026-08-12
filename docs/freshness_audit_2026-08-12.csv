@@ -1,0 +1,23 @@
+asset|ticker|config_source|result|last_observation|rows|detail
+Brent Crude|BZ=F|yahoo|live_daily|2026-08-12|25|
+WTI Crude|CL=F|yahoo|live_daily|2026-08-12|25|
+Natural Gas (Henry Hub)|NG=F|yahoo|live_daily|2026-08-12|25|
+Gasolina (RBOB)|RB=F|yahoo|live_daily|2026-08-12|25|
+Diesel / Heating Oil|HO=F|yahoo|live_daily|2026-08-12|25|
+Carvão (Peabody Energy — proxy)|BTU|yahoo|live_daily|2026-08-12|30|
+Urânio (Global X Uranium ETF — proxy)|URA|yahoo|live_daily|2026-08-12|30|
+Ouro|GC=F|yahoo|live_daily|2026-08-12|25|
+Prata|SI=F|yahoo|live_daily|2026-08-12|25|
+Cobre|HG=F|yahoo|live_daily|2026-08-12|25|
+Alumínio|ALI=F|synthetic|configured_synthetic|||
+Lítio (Global X Lithium ETF — proxy)|LIT|yahoo|live_daily|2026-08-12|30|
+Minério de Ferro (SGX)|TIO=F|synthetic|configured_synthetic|||
+Níquel & Zinco (iShares Metals & Mining — proxy)|PICK|yahoo|live_daily|2026-08-12|30|
+Soja|ZS=F|yahoo|live_daily|2026-08-12|25|
+Milho|ZC=F|yahoo|live_daily|2026-08-12|25|
+Trigo|ZW=F|yahoo|live_daily|2026-08-12|25|
+Café Arábica|KC=F|yahoo|live_daily|2026-08-12|25|
+Açúcar #11|SB=F|yahoo|live_daily|2026-08-12|25|
+Algodão|CT=F|yahoo|live_daily|2026-08-12|25|
+Cacau|CC=F|yahoo|live_daily|2026-08-12|25|
+Suco de Laranja|OJ=F|yahoo|live_daily|2026-08-12|25|

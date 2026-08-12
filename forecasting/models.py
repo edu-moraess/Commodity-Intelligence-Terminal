@@ -5,7 +5,7 @@ Baseline determinístico + ensemble de modelos clássicos e de ML +
 Monte Carlo avançado (via forecasting.mc_engine).
 
 Monte Carlo API is re-exported from forecasting.mc_engine for backward compatibility.
-Density backtest (Fase 4) re-exported from forecasting.density_backtest.
+Density backtest re-exported from forecasting.density_backtest.
 """
 
 from __future__ import annotations
@@ -284,7 +284,7 @@ from forecasting.mc_engine import (
     _optimal_block_length,
 )
 
-# Fase 4 — density backtest
+# Density backtest
 try:
     from forecasting.density_backtest import (
         walk_forward_density_backtest,

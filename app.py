@@ -5,18 +5,13 @@ Ponto de entrada único do app. Usa st.navigation/st.Page (API nativa do
 Streamlit >= 1.36) para declarar explicitamente o nome e o ícone de cada
 página.
 
-CHANGELOG v5.0.0:
-- Health check no sidebar (Fase 5 produção).
-- APP_VERSION visível no branding.
 """
-
-from datetime import datetime, timezone, timedelta
 
 import streamlit as st
 import pandas as pd
 
 from config.settings import (
-    APP_NAME, APP_ICON, APP_VERSION,
+    APP_NAME, APP_ICON,
     ENERGY_ASSETS, METALS_ASSETS, AGRI_ASSETS, ALL_ASSETS, THEME,
 )
 from data.data_manager import load_price_history_bulk
@@ -24,6 +19,7 @@ from analytics import metrics
 from charts import plotly_charts as charts
 from utils.ticker_tape import render_ticker_tape
 from utils.design_system import inject_institutional_css, render_sidebar_brand
+from utils.data_status import render_price_data_disclosure
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="expanded")
 
@@ -37,8 +33,8 @@ render_ticker_tape(_ticker_price_data, ALL_ASSETS)
 def render_home() -> None:
     st.title(f"{APP_ICON} {APP_NAME}")
     st.caption(
-        f"Monitoramento institucional do mercado global de commodities — "
-        f"Energia · Metais · Agricultura · v{APP_VERSION}"
+        "Monitoramento institucional de commodities — Energia · Metais · Agricultura. "
+        "As séries de preço são diárias; consulte a referência de cada ativo antes da análise."
     )
 
     quick_assets = [
@@ -52,6 +48,11 @@ def render_home() -> None:
 
     with st.spinner("Carregando cotações..."):
         price_data = load_price_history_bulk(quick_assets)
+
+    render_price_data_disclosure(
+        price_data,
+        title="Fonte e data das séries da visão geral",
+    )
 
     cols = st.columns(len(quick_assets))
     for col, asset in zip(cols, quick_assets):
@@ -111,13 +112,13 @@ def render_home() -> None:
             "Este terminal reúne preços, analytics quantitativos, macroeconomia, risco e "
             "forecasting probabilístico para os principais mercados de commodities. "
             "Navegue pelos módulos na barra lateral.\n\n"
-            "**Status de dados:** quando uma fonte ao vivo falha, o sistema faz fallback "
-            "automático para dados simulados (badge 🔸), garantindo que o terminal nunca "
-            "quebre em produção."
+            "**Status de dados:** os preços são séries diárias de fechamento. Quando um "
+            "provedor não responde, a interface identifica explicitamente qualquer série "
+            "simulada (badge 🔸); ela não representa uma cotação de mercado."
         )
         st.info(
-            f"Versão **{APP_VERSION}** · Monte Carlo com cache de cenários, "
-            "density backtest (CRPS/PIT) e health checks operacionais.",
+            "Monte Carlo com cache de cenários, density backtest (CRPS/PIT) e "
+            "health checks operacionais.",
             icon="🧭",
         )
 
@@ -128,11 +129,10 @@ def render_home() -> None:
 render_sidebar_brand()
 
 with st.sidebar:
-    st.caption(f"v{APP_VERSION}")
     with st.expander("System health", expanded=False):
         try:
             from utils.health import run_health_checks
-            report = run_health_checks(version=APP_VERSION)
+            report = run_health_checks()
             if report.overall_ok:
                 st.success("Core systems OK")
             else:

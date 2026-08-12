@@ -1,4 +1,4 @@
-"""Fase 2/3 — testes de robustez quantitativa e engenharia."""
+"""Testes de robustez quantitativa e engenharia."""
 import sys
 import os
 import numpy as np

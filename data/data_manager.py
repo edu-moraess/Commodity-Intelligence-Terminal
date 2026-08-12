@@ -1,17 +1,9 @@
 """
-DataManager — Camada Unificada de Dados (v4.4.0)
-===================================================
-Ponto único de acesso a dados de preço e macro no terminal.
-
-CHANGELOG v4.4.0:
-- Batch download do Yahoo Finance (1 chamada para N tickers) — reduz
-  tempo de carregamento de ~30-60s para ~3-5s.
-- Tickers inválidos conhecidos (ALI=F, TIO=F) pulam direto pro fallback
-  sintético sem retry demorado.
-- Tratamento de MultiIndex do yfinance (colunas flat automaticamente).
-- Cache TTL diferenciado: PRICE (Yahoo) vs MACRO (FRED).
-- build_price_panel agora valida dados vazios e retorna DataFrame vazio
-  com mensagem clara em vez de quebrar silenciosamente.
+DataManager — Camada Unificada de Dados
+=========================================
+Ponto único de acesso a dados de preço e macro no terminal. O carregamento em
+lote reduz chamadas ao provedor; os dados retornados mantêm a identificação de
+origem para apresentação explícita na interface.
 """
 
 from __future__ import annotations

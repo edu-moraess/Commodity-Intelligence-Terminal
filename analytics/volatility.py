@@ -63,7 +63,7 @@ def _garch11_neg_log_likelihood(params, returns: np.ndarray) -> float:
 
 
 def fit_garch11(close: pd.Series, lookback: int = 500) -> dict:
-    """Ajusta GARCH(1,1) por MLE (implementação própria — compatibilidade v1).
+    """Ajusta GARCH(1,1) por MLE com implementação própria.
 
     Retorna parâmetros, série de vol condicional anualizada e forecast 1d.
     """

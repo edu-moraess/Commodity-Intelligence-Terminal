@@ -4,7 +4,7 @@ Analytics — Risk Management Institucional
 VaR (histórico, paramétrico, Monte Carlo, Filtered Historical Simulation,
 Cornish-Fisher), Expected Shortfall / CVaR, stress testing, tracking error.
 
-Compatível com a API v1 + novos métodos.
+Mantém a interface existente e incorpora métodos adicionais de risco.
 """
 
 from __future__ import annotations

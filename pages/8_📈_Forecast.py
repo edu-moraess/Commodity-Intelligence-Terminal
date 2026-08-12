@@ -2,10 +2,11 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 
-from config.settings import ALL_ASSETS, FORECAST_HORIZONS, APP_NAME, APP_VERSION
+from config.settings import ALL_ASSETS, FORECAST_HORIZONS, APP_NAME
 from data.data_manager import load_price_history
 from forecasting import models as fc
 from charts import plotly_charts as charts
+from utils.data_status import render_price_data_disclosure
 
 try:
     from forecasting.scenario_cache import scenario_summary_cached
@@ -107,8 +108,10 @@ with st.spinner("Carregando dados e simulando cenários..."):
         st.caption(f"Melhor tendência (walk-forward RMSE): **{best_name}**")
     trend_pred = fc.trend_forecast(close, horizon_days, model_name=trend_model)
 
-if pdat.is_synthetic:
-    st.warning("⚠️ Base de preço **simulada** — projeções abaixo herdam essa limitação.", icon="⚠️")
+render_price_data_disclosure(
+    {asset.ticker: pdat},
+    title="Fonte e data da base usada nas projeções",
+)
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Preço Atual", f"{scenario['preco_atual']:.2f}")
@@ -144,14 +147,12 @@ try:
     block_disp = f"{float(block_used):.0f}" if block_used is not None and np.isfinite(float(block_used)) else "—"
 except (TypeError, ValueError):
     block_disp = "—"
-fp = scenario.get("cache_fingerprint", "—")
 st.caption(
     f"Método MC: **{scenario.get('method', mc_method)}** · "
     f"Seed: **{scenario.get('seed', seed)}** · "
     f"Block size: **{block_disp}** · "
     f"IC 90%: [{ic[0]:.2f}, {ic[1]:.2f}] · "
-    f"Tendência: **{trend_model}** · "
-    f"v{scenario.get('app_version', APP_VERSION)} · fp:`{fp}`"
+    f"Tendência: **{trend_model}**"
 )
 
 st.plotly_chart(

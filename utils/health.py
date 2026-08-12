@@ -29,13 +29,11 @@ class HealthReport:
     timestamp: str
     overall_ok: bool
     checks: list[CheckResult] = field(default_factory=list)
-    version: str = "unknown"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "overall_ok": self.overall_ok,
-            "version": self.version,
             "checks": [
                 {
                     "name": c.name,
@@ -88,7 +86,7 @@ def _check_data_layer() -> CheckResult:
         return CheckResult(name="data_synthetic", ok=False, detail=str(exc)[:120])
 
 
-def run_health_checks(version: str = "unknown") -> HealthReport:
+def run_health_checks() -> HealthReport:
     """Executa checks leves (sem rede externa obrigatória)."""
     checks: list[CheckResult] = []
 
@@ -113,5 +111,4 @@ def run_health_checks(version: str = "unknown") -> HealthReport:
         timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         overall_ok=overall,
         checks=checks,
-        version=version,
     )

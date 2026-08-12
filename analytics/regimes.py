@@ -4,7 +4,7 @@ Analytics — Detecção de Regimes via Hidden Markov Model (multi-estado)
 HMM Gaussiano de 2–4 estados implementado via Baum-Welch + Viterbi.
 Seleção automática do número de estados por AIC / BIC / Log-Likelihood.
 
-Compatível com a API v1 (fit_hmm_2state + regime_summary).
+Mantém a interface `fit_hmm_2state` e `regime_summary` para consumidores existentes.
 
 Referência: Hamilton, J. D. (1989). Econometrica.
 """
@@ -160,7 +160,7 @@ def fit_hmm(
 
 
 def fit_hmm_2state(returns: np.ndarray, n_iter: int = 100, tol: float = 1e-6, seed: int = 42) -> dict:
-    """Wrapper de compatibilidade com a API v1."""
+    """Wrapper de compatibilidade para consumidores existentes."""
     return fit_hmm(returns, n_states=2, n_iter=n_iter, tol=tol, seed=seed)
 
 

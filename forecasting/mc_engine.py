@@ -1,7 +1,7 @@
 """Monte Carlo engine — Stationary Bootstrap, GBM, Jump, GARCH-MC, Student-t.
 
-Fase 3: performance (bootstrap via matriz de índices), observabilidade (@timed),
-validação de inputs.
+Motor Monte Carlo com bootstrap por matriz de índices, observabilidade e
+validação de entradas.
 """
 from __future__ import annotations
 

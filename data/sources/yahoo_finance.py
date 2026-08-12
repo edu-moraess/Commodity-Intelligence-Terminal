@@ -1,14 +1,8 @@
 """
-Fonte de Dados — Yahoo Finance (v4.4.0)
-=========================================
+Fonte de Dados — Yahoo Finance
+================================
 Wrapper fino sobre `yfinance` com retry exponencial e normalização de
 schema (OHLCV + OpenInterest quando disponível).
-
-CHANGELOG v4.4.0:
-- Timeout reduzido de 15s para 8s (evita travamento em tickers inexistentes).
-- max_retries reduzido de 3 para 2 (evita retry excessivo em tickers inválidos).
-- sleep máximo limitado a 4s (antes era 8s).
-- Validação explícita de DataFrame vazio antes de retornar.
 """
 
 from __future__ import annotations

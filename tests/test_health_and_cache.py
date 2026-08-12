@@ -1,4 +1,4 @@
-"""Fase 5 — health + production cache smoke tests."""
+"""Smoke tests do health check e do cache de cenários."""
 import sys
 import os
 import numpy as np
@@ -8,12 +8,10 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from utils.health import run_health_checks
-from config.settings import APP_VERSION
 
 
 def test_health_checks_critical_pass():
-    report = run_health_checks(version=APP_VERSION)
-    assert report.version == APP_VERSION
+    report = run_health_checks()
     assert report.overall_ok is True
     names = {c.name for c in report.checks}
     assert "mc_engine" in names
@@ -22,7 +20,7 @@ def test_health_checks_critical_pass():
 
 
 def test_health_report_to_dict():
-    report = run_health_checks(version="test")
+    report = run_health_checks()
     d = report.to_dict()
     assert "checks" in d
     assert d["overall_ok"] is True

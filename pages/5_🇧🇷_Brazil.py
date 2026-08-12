@@ -4,17 +4,14 @@ import pandas as pd
 from config.settings import BRAZIL_ASSETS, APP_NAME
 from utils.sector_view import render_sector_page
 
-# NOTA v4.5.0: st.set_page_config() removido daqui — agora é chamado
-# uma única vez em app.py, antes de st.navigation(...).run().
-
 render_sector_page(
     BRAZIL_ASSETS,
     sector_name="🇧🇷 Commodities Brasileiras",
     sector_note=(
         "Preços internacionais de referência para as principais commodities de exportação "
         "brasileira. Produção, exportações por porto/ferrovia e principais compradores usam "
-        "dados de referência estática abaixo — a versão com dados vivos requer integração com "
-        "ComexStat/Secex (MDIC) e ANTAQ — ver README."
+        "dados de referência estática abaixo. A integração com ComexStat/Secex (MDIC) "
+        "e ANTAQ é necessária para atualizar esses indicadores — ver README."
     ),
 )
 

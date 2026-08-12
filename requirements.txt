@@ -1,4 +1,4 @@
-# Commodity Intelligence Terminal — Dependências Institucionais (v2.0)
+# Commodity Intelligence Terminal — Dependências Institucionais
 # Instalar com: pip install -r requirements.txt
 
 streamlit>=1.38,<2.0

@@ -4,11 +4,8 @@ Sector View — Renderização Compartilhada por Setor
 Energia, Metais e Agricultura compartilham a mesma anatomia de página
 (cards de preço, tabela de métricas, candlestick por ativo, correlação
 intra-setor). Este módulo centraliza essa renderização para as três
-páginas de setor, evitando triplicar ~200 linhas de layout Streamlit.
-
-CHANGELOG Parte 3:
-- Skeleton loading (KPI + tabela) no lugar de spinner genérico isolado.
-- Export CSV/Excel da tabela de métricas.
+páginas de setor, evitando triplicar ~200 linhas de layout Streamlit. Também
+inclui exportação de CSV e Excel da tabela de métricas.
 """
 
 from __future__ import annotations
@@ -22,6 +19,11 @@ from analytics import metrics, correlation
 from charts import plotly_charts as charts
 from utils.export import download_dataframe
 from utils.skeleton import skeleton_kpi_row, skeleton_table_block
+from utils.data_status import (
+    format_observation_date,
+    price_source_label,
+    render_price_data_disclosure,
+)
 
 
 def render_sector_page(
@@ -56,14 +58,7 @@ def render_sector_page(
     ph_kpi.empty()
     ph_table.empty()
 
-    any_synthetic = any(pdata.is_synthetic for pdata in price_data.values())
-    if any_synthetic:
-        st.warning(
-            "⚠️ Um ou mais ativos estão exibindo **dados simulados** — a fonte "
-            "ao vivo (Yahoo Finance) não respondeu neste ambiente. Em produção "
-            "com acesso à internet, os dados reais são usados automaticamente.",
-            icon="⚠️",
-        )
+    render_price_data_disclosure(price_data)
 
     # -------- Cards de resumo por ativo --------
     cols = st.columns(min(4, len(assets)) or 1)
@@ -88,8 +83,9 @@ def render_sector_page(
                 value=display_value,
                 delta=display_delta,
             )
+            st.caption(f"Referência: {format_observation_date(pdat.df)}")
             if pdat.is_synthetic:
-                st.caption("🔸 simulado")
+                st.caption("🔸 Série simulada — não é cotação de mercado")
 
     st.divider()
 
@@ -102,6 +98,8 @@ def render_sector_page(
         row = metrics.summary_row(close, risk_free_annual=RISK_FREE_RATE_ANNUAL)
         table_rows.append({
             "Ativo": asset.name,
+            "Referência": format_observation_date(pdat.df),
+            "Origem": price_source_label(pdat),
             "Último": row["last_price"],
             "1D": row["chg_1d"], "1S": row["chg_1w"], "1M": row["chg_1m"], "YTD": row["chg_ytd"],
             "Vol. Anual.": row["vol_annual"], "Sharpe": row["sharpe"], "Sortino": row["sortino"],

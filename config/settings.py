@@ -1,12 +1,8 @@
 """
-Commodity Intelligence Terminal — Configuração Central (v5.0.0)
-================================================================
+Commodity Intelligence Terminal — Configuração Central
+=======================================================
 Define o universo de ativos, mapeamento de tickers (Yahoo Finance / FRED),
 parâmetros de cache e constantes globais da aplicação.
-
-CHANGELOG v5.0.0:
-- APP_VERSION para fingerprint de cache e health checks.
-- CACHE_TTL_SCENARIO para Monte Carlo em produção.
 """
 
 from dataclasses import dataclass
@@ -80,13 +76,13 @@ BRAZIL_ASSETS: List[Asset] = [
 # --------------------------------------------------------------------------
 
 MACRO_SERIES: Dict[str, dict] = {
-    "DXY":        {"code": "DTWEXBGS", "name": "US Dollar Index (Trade-Weighted)"},
-    "UST10Y":     {"code": "DGS10", "name": "US 10Y Treasury Yield"},
-    "FEDFUNDS":   {"code": "FEDFUNDS", "name": "Fed Funds Rate"},
-    "CPI":        {"code": "CPIAUCSL", "name": "US CPI (All Urban Consumers)"},
-    "PPI":        {"code": "PPIACO", "name": "US PPI (All Commodities)"},
-    "INDPRO":     {"code": "INDPRO", "name": "US Industrial Production"},
-    "CHINA_CPI":  {"code": "CHNCPIALLMINMEI", "name": "China CPI"},
+    "DXY":        {"code": "DTWEXBGS", "name": "US Dollar Index (Trade-Weighted)", "frequency": "Diária"},
+    "UST10Y":     {"code": "DGS10", "name": "US 10Y Treasury Yield", "frequency": "Diária"},
+    "FEDFUNDS":   {"code": "FEDFUNDS", "name": "Fed Funds Rate", "frequency": "Mensal"},
+    "CPI":        {"code": "CPIAUCSL", "name": "US CPI (All Urban Consumers)", "frequency": "Mensal"},
+    "PPI":        {"code": "PPIACO", "name": "US PPI (All Commodities)", "frequency": "Mensal"},
+    "INDPRO":     {"code": "INDPRO", "name": "US Industrial Production", "frequency": "Mensal"},
+    "CHINA_CPI":  {"code": "CHNCPIALLMINMEI", "name": "China CPI", "frequency": "Mensal"},
 }
 
 # --------------------------------------------------------------------------
@@ -95,7 +91,6 @@ MACRO_SERIES: Dict[str, dict] = {
 
 APP_NAME = "Commodity Intelligence Terminal"
 APP_ICON = "🛢️"
-APP_VERSION = "5.0.0"
 DEFAULT_LOOKBACK_DAYS = 730
 
 CACHE_TTL_PRICE = 300

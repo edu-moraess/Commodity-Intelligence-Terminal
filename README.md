@@ -5,13 +5,13 @@ commodities — Energia, Metais e Agricultura — construída em **Python +
 Streamlit**, com arquitetura modular (Clean Architecture / SOLID),
 fallback automático de dados e pronta para deploy imediato.
 
-> **Status:** núcleo funcional em produção (v1.0). Módulos avançados
-> (NLP, ESG, Supply Chain, geopolítica em mapa, deep learning) estão no
+> **Status:** núcleo funcional disponível. Módulos avançados
+> (NLP, ESG, Supply Chain, geopolítica em mapa, deep learning) permanecem no
 > roadmap — ver seção [Roadmap](#-roadmap-de-expansão) abaixo.
 
 ---
 
-## ✅ O que está implementado (v1.0)
+## ✅ O que está implementado
 
 | Módulo | Conteúdo |
 |---|---|
@@ -22,7 +22,7 @@ fallback automático de dados e pronta para deploy imediato.
 | ⚠️ **Risk Analytics** | VaR histórico e paramétrico, CVaR/Expected Shortfall, stress test customizável, histograma de retornos |
 | 📈 **Forecast** | Monte Carlo (block bootstrap), cenários Base/Otimista/Pessimista, fan chart P10–P90, baseline de regressão (Linear/Ridge/Lasso) |
 | 🧮 **Quant Research** | GARCH(1,1) próprio via MLE (scipy), volatilidade EWMA, walk-forward validation comparando modelos de tendência |
-| ⚙️ **Infraestrutura** | Cache + retry automático, fallback sintético transparente, logging estruturado, testes unitários, Docker, configs para 4 plataformas de deploy |
+| ⚙️ **Infraestrutura** | Cache + retry automático, identificação transparente de séries simuladas, logging estruturado, testes unitários, Docker e configurações de deploy |
 
 Todos os gráficos são Plotly com tema escuro institucional, zoom, hover e exportação nativos.
 
@@ -63,11 +63,11 @@ diretamente — tudo passa por `data/data_manager.py`. Trocar de provedor
 (ex: migrar para Bloomberg/Refinitiv no futuro) é uma mudança isolada
 nesse arquivo, sem tocar em analytics ou páginas.
 
-**Resiliência de dados:** toda fonte externa tem fallback sintético
-automático (GBM com regimes de volatilidade, âncorado em preços-base
-realistas). O usuário sempre vê um badge 🔸 quando os dados exibidos são
-simulados — nunca um erro que quebra a página, e nunca dado simulado
-apresentado silenciosamente como real.
+**Transparência de dados:** as séries de preço de Yahoo Finance são diárias de
+fechamento, não cotações intradiárias. A aplicação mostra a origem e a data da
+última observação em cada aba. Caso o provedor não responda, qualquer série
+simulada recebe identificação explícita e não deve ser interpretada como preço
+de mercado.
 
 ---
 
@@ -176,6 +176,8 @@ item abaixo seja uma **extensão**, não uma refatoração:
 
 ## 📄 Licença de Uso de Dados
 
-Preços via Yahoo Finance (`yfinance`) e séries macro via FRED estão
-sujeitos aos termos de uso de cada provedor — este projeto não redistribui
-dados, apenas consulta as APIs em tempo real no ambiente do usuário.
+Preços via Yahoo Finance (`yfinance`) e séries macro via FRED estão sujeitos
+aos termos de uso de cada provedor. O projeto não redistribui dados: consulta
+séries conforme a disponibilidade, a frequência de publicação e os limites de
+cada fonte. Preços são tratados como séries diárias de fechamento; indicadores
+macro podem ter frequência mensal.

@@ -1,4 +1,4 @@
-"""Fase 4 — density backtest out-of-sample."""
+"""Testes de density backtest out-of-sample."""
 import sys
 import os
 import numpy as np

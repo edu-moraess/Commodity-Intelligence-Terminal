@@ -76,7 +76,7 @@ def test_pca_explained_variance_sums_to_at_most_one():
 
 
 # ---------------------------------------------------------------------------
-# Fase 1 — novos testes de robustez quant
+# Testes adicionais de robustez quantitativa
 # ---------------------------------------------------------------------------
 
 def test_stationary_bootstrap_reproducible_with_seed(sample_close):

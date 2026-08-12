@@ -1,12 +1,7 @@
 """
-Analytics — Métricas de Série de Preço (v4.4.1)
-==================================================
+Analytics — Métricas de Série de Preço
+========================================
 Funções puras (sem estado, sem I/O) sobre pd.Series de preços de fechamento.
-
-CHANGELOG v4.4.1:
-- Corrigido FutureWarning em daily_returns: adicionado fill_method=None
-  para evitar depreciação futura.
-- Proteção extra em max_drawdown para séries vazias.
 """
 
 from __future__ import annotations
@@ -134,11 +129,7 @@ def cumulative_return_series(close: pd.Series) -> pd.Series:
 
 def summary_row(close: pd.Series, benchmark_close: pd.Series | None = None,
                  risk_free_annual: float = 0.045, window: int | None = None) -> dict:
-    """Monta a linha completa de métricas para o Dashboard Global.
-    
-    CHANGELOG v4.4.0: adicionado parâmetro `window` para filtrar dados
-    antes do cálculo das métricas (usado pelo Risk Analytics).
-    """
+    """Monta a linha completa de métricas para o Dashboard Global."""
     # Aplica janela se especificada
     if window is not None and window > 0:
         close_windowed = close.tail(window)

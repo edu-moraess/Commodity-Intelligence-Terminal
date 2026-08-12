@@ -9,6 +9,7 @@ from analytics import portfolio_advanced as port_adv
 from analytics import cached
 from charts import plotly_charts as charts
 from utils.export import download_dataframe
+from utils.data_status import render_price_data_disclosure
 
 st.title("📊 Portfolio Optimization")
 st.caption(
@@ -82,6 +83,11 @@ with st.expander("⚙️ Configurações Avançadas"):
 with st.spinner("Carregando preços e otimizando..."):
     price_data = load_price_history_bulk(sel_assets)
     panel_raw = build_price_panel(price_data)
+
+render_price_data_disclosure(
+    price_data,
+    title="Fonte e data das séries usadas no portfólio",
+)
 
 if panel_raw.empty or panel_raw.shape[1] < 2:
     st.error("Dados de preço insuficientes.")

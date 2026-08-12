@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from config.settings import CACHE_TTL_COMPUTE, APP_VERSION
+from config.settings import CACHE_TTL_COMPUTE
 from forecasting.mc_engine import scenario_summary as _scenario_summary_raw
 
 
@@ -30,7 +30,7 @@ def _fingerprint(
 ) -> str:
     raw = (
         f"{ticker_or_key}|{last_price:.6f}|{last_date}|{horizon_days}|"
-        f"{n_sims}|{method}|{seed}|{block_size}|{APP_VERSION}"
+        f"{n_sims}|{method}|{seed}|{block_size}"
     )
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
@@ -57,9 +57,8 @@ def _cached_scenario(
         seed=seed,
         block_size=block_size,
     )
-    # Metadados de produção (não afetam cálculos)
+    # Metadado técnico para rastreabilidade interna do cache.
     result["cache_fingerprint"] = fp
-    result["app_version"] = APP_VERSION
     # fan_chart e final_prices_dist não serializam bem no cache interno do st
     # — st.cache_data pickleia o dict; DataFrame/ndarray ok
     return result
