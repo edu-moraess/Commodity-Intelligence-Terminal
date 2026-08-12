@@ -5,8 +5,12 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 
-def correlation_matrix(data: pd.DataFrame, window: int) -> pd.DataFrame:
-    """Matriz de correlação móvel (sobre retornos diários) nas últimas 'window' linhas."""
+def correlation_matrix(data: pd.DataFrame, window: int = 252) -> pd.DataFrame:
+    """Matriz de correlação de retornos, limitada à janela mais recente.
+
+    A janela padrão de 252 pregões mantém a função utilizável para análises
+    anuais e preserva compatibilidade com consumidores que não a informam.
+    """
     if window > len(data):
         window = len(data)
     returns = data.pct_change().iloc[-window:]
