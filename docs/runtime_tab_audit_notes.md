@@ -31,3 +31,11 @@ A navegação direta para `/Agriculture` falhou durante o carregamento e retorno
 ## Verificação posterior — referências ainda visíveis na implantação publicada
 
 Na nova inspeção da URL publicada, a interface ainda exibiu `v5.0.0` no subtítulo da página inicial, no cartão informativo, no rodapé da barra lateral e no relógio global. Também continuou a apresentar o rótulo `MARKETS ONLINE` e o botão `Atualizar dados` antigos. Esses elementos correspondem ao código anterior à limpeza já registrada no repositório local; o commit local não foi enviado ao remoto e, portanto, a implantação publicada ainda não recebeu essas alterações.
+
+## Verificação após o envio ao remoto
+
+A implantação passou a exibir o novo subtítulo, o novo botão `Atualizar séries`, a divulgação de fonte e data e a nova barra lateral. Contudo, durante a recarga inicial, o bloco “Sobre a Plataforma” ainda apresentou textos antigos, incluindo uma referência de versão. A atualização seguinte retornou à tela de carregamento, indicando que a hospedagem ainda estava reiniciando o processo. Será necessária nova verificação quando a implantação estabilizar.
+
+## Confirmação de implantação estabilizada
+
+Após a reinicialização, a página inicial publicada passou a exibir integralmente os novos textos: não há identificação de versão no subtítulo, no cartão informativo, na barra lateral ou no botão de atualização. A nova divulgação de fonte e data também está visível. A rota de Forecast iniciou nova recarga e será confirmada após o carregamento completo; o código publicado dessa aba já não contém referência de versão ou fingerprint visível.
